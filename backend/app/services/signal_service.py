@@ -66,7 +66,7 @@ async def scan_market(
             m = a["metrics"]
             adx = m.get("adx", 0) or 0
             direction = Direction.BUY if a["score"] > 0.12 else Direction.SELL if a["score"] < -0.12 else Direction.HOLD
-            high_conv = direction != Direction.HOLD and adx > 25 and abs(a["score"]) > 0.3
+            high_conv = direction != Direction.HOLD and ta.is_high_conviction(a["score"], adx, item["asset_class"])
             conviction = round(abs(a["score"]) * (1 + adx / 50), 3)
             results.append({
                 "symbol": sym,

@@ -17,6 +17,17 @@ def _state_rsi(v: float) -> str:
     return "survente" if v < 30 else "surachat" if v > 70 else "neutre"
 
 
+# Seuil de score directionnel pour la « haute conviction », adapté à la classe d'actif :
+# le forex et les actions bougent en % plus faibles que la crypto, donc un seuil plus bas.
+HIGH_CONV_THRESHOLD = {"crypto": 0.30, "forex": 0.22, "stock": 0.25}
+
+
+def is_high_conviction(score: float, adx: float | None, asset_class: str | None) -> bool:
+    """Vrai si tendance forte (ADX>25) ET score directionnel au-dessus du seuil de la classe."""
+    threshold = HIGH_CONV_THRESHOLD.get(asset_class or "crypto", 0.30)
+    return abs(score) > threshold and (adx or 0) > 25
+
+
 def fear_greed_proxy(candles: list[Candle]) -> int:
     """Indice Fear & Greed (0-100) dérivé du marché quand aucune source de news n'est disponible.
 
@@ -168,7 +179,22 @@ def analyze(candles: list[Candle]) -> dict:
     aligned = sum(1 for s in signals if (s > 0) == (raw > 0) and s != 0)
     agreement = aligned / n
     score = max(-1.0, min(1.0, raw * (0.6 + 0.8 * agreement)))
-    confidence = min(1.0, 0.45 + 0.1 * len(signals))
+
+    # --- Amplification de tendance (ADX) ---
+    # L'ADX mesure la FORCE de la tendance : quand elle est forte (>25) et confirmée par l'EMA, on
+    # tire le score vers la direction de la tendance (principe : en tendance forte, on suit la
+    # tendance et on ignore les oscillateurs de retour à la moyenne type RSI neutre). Cela évite que
+    # des marchés en tendance claire (ex. EUR/USD ADX 39 baissier) restent à faible conviction.
+    adx_val = metrics.get("adx")
+    if adx_val and adx_val > 25 and ts != 0:
+        trend_dir = 1.0 if ts > 0 else -1.0
+        # On n'amplifie que si le score n'est pas franchement contraire à la tendance.
+        if score * trend_dir >= -0.1:
+            boost = min(0.4, (adx_val - 25) / 45.0)
+            score = max(-1.0, min(1.0, (1 - boost) * score + boost * trend_dir))
+
+    # Confiance plus haute quand la tendance est forte et confirmée.
+    confidence = min(1.0, 0.45 + 0.08 * len(signals) + (0.1 if (adx_val or 0) > 25 else 0.0))
     return {
         "metrics": metrics,
         "score": round(score, 3),
