@@ -95,6 +95,20 @@ def check_can_generate(user: User, store: AppStore) -> tuple[bool, str | None]:
     return True, None
 
 
+def real_exposure_pct(user: User, store: AppStore) -> float:
+    """Exposition issue des ordres RÉELLEMENT exécutés (papier/réel), pas des analyses générées.
+
+    Utilisée par l'Agent Risque pour ne pénaliser la confiance qu'en présence de vraies positions :
+    générer une analyse ne doit pas dégrader la qualité des signaux suivants.
+    """
+    try:
+        orders = store.records.list("order", user.tenant_id)
+    except Exception:  # noqa: BLE001 — pas de store records (mode dégradé)
+        return 0.0
+    notional = sum(float(o.get("filled_price") or 0) * float(o.get("qty") or 0) for o in orders)
+    return (notional / user.capital * 100) if user.capital > 0 else 0.0
+
+
 def generation_warning(user: User, store: AppStore) -> str | None:
     """Avertissement de risque (non bloquant) à afficher sur la carte signal."""
     status = compute_status(user, store)

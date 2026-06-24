@@ -180,8 +180,9 @@ async def generate_for_user(
     )
 
     # Contexte de risque courant (exposition) + apprentissage Journal (poids dynamiques).
-    rs = risk_service.compute_status(user, store)
-    risk_context = {"exposure_pct": rs.exposure_pct, "drawdown_pct": 0.0}
+    # L'agent risque se base sur l'exposition RÉELLE (ordres exécutés), pas sur l'accumulation des
+    # analyses générées — sinon générer des signaux pénaliserait injustement la confiance.
+    risk_context = {"exposure_pct": risk_service.real_exposure_pct(user, store), "drawdown_pct": 0.0}
     journal_mult = journal_service.compute_multipliers(store, user.tenant_id)
 
     card = await generate_signal(
