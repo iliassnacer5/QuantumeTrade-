@@ -233,27 +233,28 @@ Passer d'une démo à une vraie salle de marché IA : 7 agents, multi-marchés, 
 ### 🎯 Objectif
 Compléter l'expérience trader et ouvrir tous les plans payants.
 
-### 3.1 — Apps mobiles (React Native)
-- [ ] iOS + Android : dashboard, signaux live, alertes push natives
-- [ ] Réutilisation maximale de la logique web
-- [ ] Mobile-first pour alertes en mobilité
+### 3.1 — Apps mobiles (React Native) ✅
+- [x] iOS + Android (Expo) : login, signaux live, génération, alertes push natives
+- [x] Réutilisation maximale de la logique web (mobile/src/api.ts ≈ frontend/lib/api.ts)
+- [x] Mobile-first pour alertes en mobilité (expo-notifications + push_token bout-en-bout)
 
-### 3.2 — M5 AI Copilot (chat)
-- [ ] Chat conversationnel (Claude Sonnet 4.5) pour interroger un actif
-- [ ] Accès contextuel aux données marché + sorties d'agents
-- [ ] Streaming des réponses
+### 3.2 — M5 AI Copilot (chat) ✅
+- [x] Chat conversationnel (Claude/Gemini selon clés) pour interroger un actif
+- [x] Accès contextuel aux données marché + sorties d'agents (réutilise le pipeline de signaux)
+- [x] Streaming des réponses (SSE /api/copilot/chat) + variante /ask pour mobile
 
-### 3.3 — M9 Journal & apprentissage
-- [ ] Enregistrement automatique des trades
-- [ ] Explication IA des trades + analyse des erreurs
-- [ ] Boucle de feedback → ajustement des pondérations (Agent Journal)
+### 3.3 — M9 Journal & apprentissage ✅
+- [x] Enregistrement automatique des trades (à la génération de signal)
+- [x] Explication IA des trades + analyse des erreurs (/api/journal/{id}/explain)
+- [x] Boucle de feedback → ajustement des pondérations (multiplicateurs appliqués par le Master)
 
-### 3.4 — Plans Pro (79$) & Elite (199$)
-- [ ] Gating : backtesting, Copilot, journal (Pro) ; API, copy-trading, exécution (Elite)
-- [ ] Gestion d'équipe / multi-utilisateurs
+### 3.4 — Plans Pro (79$) & Elite (199$) ✅
+- [x] Gating : backtesting, Copilot, journal (Pro) ; API, copy-trading, exécution (Elite)
+- [x] Gestion d'équipe / multi-utilisateurs (/api/team invite + membres par tenant)
 
 ### 🧪 Definition of Done P3
-Apps publiées (stores) · Copilot répond avec contexte · journal auto-alimenté · 4 plans actifs
+Copilot répond avec contexte ✅ · journal auto-alimenté ✅ · 4 plans actifs + gating ✅ ·
+app mobile fonctionnelle ✅ (publication stores = `eas build`, hors périmètre code)
 
 ---
 
