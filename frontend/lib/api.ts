@@ -215,6 +215,24 @@ export const api = {
     if (asset_class) p.set('asset_class', asset_class);
     return req<{ results: { symbol: string; asset_class: string; label: string }[]; classes: string[] }>(`/api/market/symbols?${p}`);
   },
+  verifySignal: (s: Signal) =>
+    req<{ verdict: string; passed: number; total: number; checks: { label: string; pass: boolean; value: any }[]; backtest: any }>(
+      '/api/signals/verify',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          symbol: s.asset,
+          timeframe: s.timeframe,
+          direction: s.direction,
+          confidence: s.confidence,
+          consensus_pct: s.consensus_pct ?? 0,
+          risk_reward: s.risk_reward,
+          mtf_aligned: s.mtf?.aligned ?? 0,
+          mtf_total: s.mtf?.total ?? 0,
+          adx: s.metrics?.adx ?? null,
+        }),
+      },
+    ),
   scan: (asset_class?: string, timeframe = '1h', limit = 20, high_conviction_only = false) =>
     req<{ count: number; high_conviction: number; results: any[] }>(
       `/api/signals/scan?${new URLSearchParams({

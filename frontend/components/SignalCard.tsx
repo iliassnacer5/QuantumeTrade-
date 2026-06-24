@@ -1,8 +1,13 @@
+'use client';
+
 /**
  * Signal Card — composant central de l'UI (cf. cahier des charges §5.3).
- * Affiche les niveaux, la confiance, le tableau de bord des indicateurs et le détail par agent.
+ * Niveaux, confiance, indicateurs, multi-timeframe, vérification fiabilité + calculateur de position.
  */
-import type { Signal } from '@/lib/api';
+import { useState } from 'react';
+import { api, type Signal } from '@/lib/api';
+
+type Verdict = { verdict: string; passed: number; total: number; checks: { label: string; pass: boolean; value: any }[]; backtest: any };
 
 export function SignalCard({ s }: { s: Signal }) {
   const isBuy = s.direction === 'BUY';
@@ -10,6 +15,42 @@ export function SignalCard({ s }: { s: Signal }) {
   const badge = isBuy ? 'bg-buy-soft text-buy' : isSell ? 'bg-sell-soft text-sell' : 'bg-border text-muted';
   const tps = [s.take_profit_1, s.take_profit_2, s.take_profit_3].filter((t) => t != null) as number[];
   const m = s.metrics ?? {};
+
+  const [verdict, setVerdict] = useState<Verdict | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [vErr, setVErr] = useState<string | null>(null);
+
+  const [capital, setCapital] = useState(10000);
+  const [riskPct, setRiskPct] = useState(1);
+
+  async function verify() {
+    setVerifying(true);
+    setVErr(null);
+    try {
+      setVerdict(await api.verifySignal(s));
+    } catch (e: any) {
+      setVErr(e.message?.includes('402') ? 'Vérification réservée au plan Pro+' : e.message ?? 'Erreur');
+    } finally {
+      setVerifying(false);
+    }
+  }
+
+  // Calculateur de position (math pure, instantané).
+  const riskPerUnit = Math.abs(s.entry - s.stop_loss);
+  const riskAmount = (capital * riskPct) / 100;
+  const size = riskPerUnit > 0 ? riskAmount / riskPerUnit : 0;
+  const positionValue = size * s.entry;
+  const tradable = s.direction !== 'HOLD' && riskPerUnit > 0;
+
+  const vStyle: Record<string, string> = {
+    strong: 'border-buy/40 bg-buy/10 text-buy',
+    moderate: 'border-yellow-500/40 bg-yellow-500/10 text-yellow-200',
+    weak: 'border-sell/40 bg-sell/10 text-sell',
+    skip: 'border-border bg-surface text-muted',
+  };
+  const vLabel: Record<string, string> = {
+    strong: '✅ Signal solide', moderate: '⚠️ Signal moyen — prudence', weak: '🔴 Signal faible — éviter', skip: '⏸️ HOLD — pas de trade',
+  };
 
   return (
     <div className="w-full max-w-lg rounded-xl border border-border bg-surface p-5 shadow-lg">
@@ -25,7 +66,7 @@ export function SignalCard({ s }: { s: Signal }) {
         </div>
       </div>
       {s.mtf && s.mtf.total > 0 && (
-        <div className="mt-2 flex items-center gap-2 text-[11px] text-muted">
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted">
           <span>Multi-timeframe :</span>
           {Object.entries(s.mtf.details).map(([tf, dir]) => (
             <span key={tf} className={`rounded px-1.5 py-0.5 ${dir === 'BUY' ? 'bg-buy/15 text-buy' : dir === 'SELL' ? 'bg-sell/15 text-sell' : 'bg-border text-muted'}`}>
@@ -59,6 +100,60 @@ export function SignalCard({ s }: { s: Signal }) {
         <p className="mt-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-200">{s.risk_warning}</p>
       )}
 
+      {/* Vérification de fiabilité */}
+      <div className="mt-4">
+        <button onClick={verify} disabled={verifying}
+          className="w-full rounded-lg border border-accent/50 bg-accent/10 px-3 py-2 text-sm font-medium text-white hover:bg-accent/20 disabled:opacity-50">
+          {verifying ? 'Backtest en cours…' : '🔎 Vérifier ce signal (backtest + checklist)'}
+        </button>
+        {vErr && <p className="mt-2 text-xs text-sell">{vErr}</p>}
+        {verdict && (
+          <div className={`mt-2 rounded-lg border p-3 ${vStyle[verdict.verdict]}`}>
+            <div className="flex items-center justify-between text-sm font-semibold">
+              <span>{vLabel[verdict.verdict]}</span>
+              <span>{verdict.passed}/{verdict.total} critères</span>
+            </div>
+            {verdict.backtest && (
+              <p className="mt-1 text-[11px] opacity-90">
+                Backtest : {verdict.backtest.trades} trades · {verdict.backtest.win_rate}% réussite · PF {verdict.backtest.profit_factor} · DD {verdict.backtest.max_drawdown_pct}%
+              </p>
+            )}
+            <ul className="mt-2 space-y-0.5 text-[11px]">
+              {verdict.checks.map((c, i) => (
+                <li key={i} className="flex items-center justify-between gap-2">
+                  <span>{c.pass ? '✓' : '✗'} {c.label}</span>
+                  <span className="font-mono opacity-80">{String(c.value)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+
+      {/* Calculateur de position */}
+      {tradable && (
+        <div className="mt-4 rounded-lg border border-border bg-background/40 p-3">
+          <p className="mb-2 text-xs font-semibold text-white">Calculateur de position</p>
+          <div className="flex flex-wrap items-end gap-3 text-xs">
+            <label className="text-muted">Capital ($)
+              <input type="number" value={capital} onChange={(e) => setCapital(Math.max(0, +e.target.value))}
+                className="mt-1 block w-28 rounded border border-border bg-surface px-2 py-1 font-mono text-white" />
+            </label>
+            <label className="text-muted">Risque (%)
+              <input type="number" step="0.5" value={riskPct} onChange={(e) => setRiskPct(Math.max(0, +e.target.value))}
+                className="mt-1 block w-20 rounded border border-border bg-surface px-2 py-1 font-mono text-white" />
+            </label>
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-1 text-[11px]">
+            <Stat label="Montant risqué" value={`${riskAmount.toFixed(2)} $`} />
+            <Stat label="Taille position" value={size.toFixed(4)} />
+            <Stat label="Valeur position" value={`${positionValue.toFixed(2)} $`} />
+            <Stat label="Risque/unité" value={riskPerUnit.toFixed(4)} />
+          </div>
+          <p className="mt-1 text-[10px] text-muted">Tu risques {riskAmount.toFixed(0)} $ ({riskPct}% du capital) si le stop est touché.</p>
+        </div>
+      )}
+
       {Object.keys(m).length > 0 && (
         <div className="mt-4">
           <p className="mb-2 text-xs font-semibold text-white">Indicateurs techniques</p>
@@ -79,7 +174,7 @@ export function SignalCard({ s }: { s: Signal }) {
         </div>
       )}
 
-      <details className="mt-4 group">
+      <details className="mt-4">
         <summary className="cursor-pointer text-xs font-semibold text-white">Analyse détaillée (agents)</summary>
         <p className="mt-2 whitespace-pre-line text-xs text-muted">{s.rationale}</p>
         {s.agents && s.agents.length > 0 && (
@@ -114,6 +209,15 @@ function Metric({ label, value, tone = '' }: { label: string; value: string | nu
     <div className="flex justify-between gap-2 border-b border-border/40 py-0.5">
       <span className="text-muted">{label}</span>
       <span className={`font-mono ${color}`}>{value}</span>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between gap-2">
+      <span className="text-muted">{label}</span>
+      <span className="font-mono text-white">{value}</span>
     </div>
   );
 }

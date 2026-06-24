@@ -38,6 +38,78 @@ async def _load_candles(symbol: str, timeframe: Timeframe) -> list[Candle]:
     return await markets.load_candles(symbol, interval=_TF_INTERVAL.get(timeframe, "1h"), limit=200)
 
 
+_TF_TO_INTERVAL = {"scalp": "5m", "intraday": "15m", "swing": "1h", "position": "4h"}
+
+
+async def verify_signal(
+    symbol: str, timeframe: str, *,
+    confidence: int = 0, consensus_pct: int = 0, risk_reward: float = 0.0,
+    mtf_aligned: int = 0, mtf_total: int = 0, adx: float | None = None, direction: str = "HOLD",
+) -> dict:
+    """Vérifie la fiabilité d'un signal : backtest de la paire + checklist du trader.
+
+    Combine une validation quantitative (backtest historique) et les critères de qualité du signal
+    (confiance, consensus, multi-timeframe, R/R, force de tendance) en un verdict ✅/⚠️/🔴.
+    """
+    from datetime import UTC, datetime
+
+    from app.backtest.engine import run_backtest
+    from app.backtest.schemas import BacktestConfig
+    from app.data.ohlcv import get_ohlcv
+    from app.domain.indicators import Candle
+
+    interval = _TF_TO_INTERVAL.get(timeframe, timeframe if "m" in timeframe or "h" in timeframe or "d" in timeframe else "1h")
+
+    bt = None
+    try:
+        rows = await get_ohlcv(symbol, interval, limit=500)
+        candles = [
+            Candle(r["open"], r["high"], r["low"], r["close"], r.get("volume", 0.0),
+                   timestamp=datetime.fromtimestamp(r["time"], UTC))
+            for r in rows
+        ]
+        if len(candles) >= 100:
+            cfg = BacktestConfig(
+                symbol=symbol, timeframe=interval,
+                start_time=candles[0].timestamp, end_time=candles[-1].timestamp, initial_capital=10000,
+            )
+            report = await run_backtest(cfg, candles, tenant_id="verify")
+            m = report.metrics
+            bt = {
+                "trades": m.total_trades,
+                "win_rate": round(m.win_rate * 100, 1),
+                "profit_factor": m.profit_factor,
+                "total_pnl_pct": m.total_pnl_pct,
+                "max_drawdown_pct": m.max_drawdown_pct,
+                "sharpe": m.sharpe_ratio,
+            }
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Verify backtest %s échoué (%s)", symbol, exc)
+
+    checks: list[dict] = []
+    if bt and bt["trades"] >= 5:
+        checks.append({"label": "Backtest : taux de réussite > 55 %", "pass": bt["win_rate"] > 55, "value": f"{bt['win_rate']}%"})
+        checks.append({"label": "Backtest : profit factor > 1,3", "pass": bt["profit_factor"] > 1.3, "value": bt["profit_factor"]})
+    checks.append({"label": "Confiance ≥ 70 %", "pass": confidence >= 70, "value": f"{confidence}%"})
+    checks.append({"label": "Consensus ≥ 70 %", "pass": consensus_pct >= 70, "value": f"{consensus_pct}%"})
+    if mtf_total:
+        checks.append({"label": "Multi-timeframe ≥ 2/3 alignés", "pass": mtf_aligned >= 2, "value": f"{mtf_aligned}/{mtf_total}"})
+    checks.append({"label": "R/R ≥ 1,5", "pass": risk_reward >= 1.5, "value": f"1 : {risk_reward}"})
+    checks.append({"label": "Tendance forte (ADX > 25)", "pass": (adx or 0) > 25, "value": round(adx, 1) if adx else "—"})
+
+    passed = sum(1 for c in checks if c["pass"])
+    total = len(checks)
+    if direction == "HOLD":
+        verdict = "skip"
+    elif passed >= total - 1:
+        verdict = "strong"
+    elif passed >= total / 2:
+        verdict = "moderate"
+    else:
+        verdict = "weak"
+    return {"verdict": verdict, "passed": passed, "total": total, "checks": checks, "backtest": bt}
+
+
 async def scan_market(
     asset_class: str | None = None,
     timeframe: str = "1h",
