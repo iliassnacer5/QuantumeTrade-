@@ -49,6 +49,7 @@ class UserORM(Base):
     phone: Mapped[str | None] = mapped_column(String, nullable=True)
     push_token: Mapped[str | None] = mapped_column(String, nullable=True)
     locale: Mapped[str] = mapped_column(String, default="fr")
+    daily_digest: Mapped[bool] = mapped_column(Boolean, default=False)
     mfa_secret: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

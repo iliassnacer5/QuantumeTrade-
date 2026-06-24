@@ -75,6 +75,7 @@ class SettingsRequest(BaseModel):
     phone: str | None = None
     push_token: str | None = None
     locale: str | None = None
+    daily_digest: bool | None = None
 
 
 class SettingsResponse(BaseModel):
@@ -91,4 +92,5 @@ class SettingsResponse(BaseModel):
     phone: str | None
     push_enabled: bool
     locale: str
+    daily_digest: bool
     mfa_enabled: bool

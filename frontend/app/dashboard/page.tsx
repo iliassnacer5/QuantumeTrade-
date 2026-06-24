@@ -113,6 +113,9 @@ export default function DashboardPage() {
           )}
         </div>
         <div className="flex gap-2">
+          <a href="/daily" className="rounded-lg border border-buy/40 bg-buy/10 px-3 py-1 text-sm text-buy hover:bg-buy/20">
+            ★ Trades du jour
+          </a>
           <a href="/scanner" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
             Scanner
           </a>

@@ -55,6 +55,7 @@ def _user_to_entity(o: UserORM) -> User:
         phone=o.phone,
         push_token=o.push_token,
         locale=getattr(o, "locale", "fr") or "fr",
+        daily_digest=getattr(o, "daily_digest", False) or False,
         mfa_secret=o.mfa_secret,
     )
 
@@ -99,6 +100,10 @@ class SqlUserRepository:
             rows = s.scalars(select(UserORM).where(UserORM.tenant_id == tenant_id)).all()
             return [_user_to_entity(o) for o in rows]
 
+    def list_all(self) -> list[User]:
+        with self._sm() as s:
+            return [_user_to_entity(o) for o in s.scalars(select(UserORM)).all()]
+
     def update(self, user: User) -> User:
         with self._sm() as s:
             o = s.get(UserORM, user.id)
@@ -122,6 +127,7 @@ class SqlUserRepository:
             o.phone = user.phone
             o.push_token = user.push_token
             o.locale = user.locale
+            o.daily_digest = user.daily_digest
             o.mfa_secret = user.mfa_secret
             s.commit()
             return _user_to_entity(o)

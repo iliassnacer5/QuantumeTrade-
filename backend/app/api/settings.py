@@ -27,6 +27,7 @@ def _to_response(u: User) -> SettingsResponse:
         phone=u.phone,
         push_enabled=bool(u.push_token),
         locale=u.locale,
+        daily_digest=u.daily_digest,
         mfa_enabled=u.mfa_enabled,
     )
 
@@ -69,5 +70,7 @@ async def update_settings(
     if body.locale is not None:
         from app.core.i18n import normalize
         user.locale = normalize(body.locale)
+    if body.daily_digest is not None:
+        user.daily_digest = body.daily_digest
     store.users.update(user)
     return _to_response(user)

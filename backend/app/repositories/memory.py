@@ -47,6 +47,9 @@ class UserRepository:
     def list_by_tenant(self, tenant_id: str) -> list[User]:
         return [u for u in self._users.values() if u.tenant_id == tenant_id]
 
+    def list_all(self) -> list[User]:
+        return list(self._users.values())
+
 
 class TenantRepository:
     def __init__(self) -> None:

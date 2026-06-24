@@ -50,6 +50,8 @@ class User:
     push_token: str | None = None
     # i18n (Phase 5)
     locale: str = "fr"
+    # Digest quotidien des trades fiables (automatisation)
+    daily_digest: bool = False
     # MFA TOTP (Lot 5)
     mfa_secret: str | None = None
     created_at: datetime = field(default_factory=_now)

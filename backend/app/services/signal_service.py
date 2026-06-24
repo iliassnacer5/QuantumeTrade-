@@ -41,6 +41,66 @@ async def _load_candles(symbol: str, timeframe: Timeframe) -> list[Candle]:
 _TF_TO_INTERVAL = {"scalp": "5m", "intraday": "15m", "swing": "1h", "position": "4h"}
 
 
+async def backtest_metrics(symbol: str, interval: str, limit: int = 500) -> dict | None:
+    """Backtest déterministe de la paire et renvoie les KPI (ou None si indisponible)."""
+    from datetime import UTC, datetime
+
+    from app.backtest.engine import run_backtest
+    from app.backtest.schemas import BacktestConfig
+    from app.data.ohlcv import get_ohlcv
+    from app.domain.indicators import Candle
+
+    try:
+        rows = await get_ohlcv(symbol, interval, limit=limit)
+        candles = [
+            Candle(r["open"], r["high"], r["low"], r["close"], r.get("volume", 0.0),
+                   timestamp=datetime.fromtimestamp(r["time"], UTC))
+            for r in rows
+        ]
+        if len(candles) < 100:
+            return None
+        cfg = BacktestConfig(symbol=symbol, timeframe=interval,
+                             start_time=candles[0].timestamp, end_time=candles[-1].timestamp, initial_capital=10000)
+        m = (await run_backtest(cfg, candles, tenant_id="bt")).metrics
+        return {
+            "trades": m.total_trades, "win_rate": round(m.win_rate * 100, 1),
+            "profit_factor": m.profit_factor, "total_pnl_pct": m.total_pnl_pct,
+            "max_drawdown_pct": m.max_drawdown_pct, "sharpe": m.sharpe_ratio,
+        }
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Backtest %s échoué (%s)", symbol, exc)
+        return None
+
+
+async def daily_picks(per_market: int = 3, classes: tuple[str, ...] = ("crypto", "forex", "stock")) -> list[dict]:
+    """Sélection quotidienne : par marché, les setups haute-conviction CONFIRMÉS par backtest.
+
+    Critères retenus : ★ haute-conviction (ADX>25, tendance forte) ET backtest fiable
+    (taux de réussite > 55 % et profit factor > 1,3 sur ≥ 5 trades). C'est la liste de trades
+    « fiables et bien backtestés » à surveiller dans chaque marché.
+    """
+    out: list[dict] = []
+    for cls in classes:
+        scanned = await scan_market(asset_class=cls, timeframe="1h", limit=14, high_conviction_only=True)
+        kept = 0
+        for cand in scanned:  # déjà triés par conviction
+            bt = await backtest_metrics(cand["symbol"], "1h")
+            if not bt or bt["trades"] < 5:
+                continue
+            reliable = bt["win_rate"] > 55 and bt["profit_factor"] > 1.3
+            if not reliable:
+                continue
+            out.append({
+                "symbol": cand["symbol"], "asset_class": cls, "direction": cand["direction"],
+                "price": cand["price"], "adx": cand["adx"], "rsi": cand["rsi"],
+                "trend": cand["trend"], "conviction": cand["conviction"], "backtest": bt,
+            })
+            kept += 1
+            if kept >= per_market:
+                break
+    return out
+
+
 async def verify_signal(
     symbol: str, timeframe: str, *,
     confidence: int = 0, consensus_pct: int = 0, risk_reward: float = 0.0,
@@ -51,40 +111,8 @@ async def verify_signal(
     Combine une validation quantitative (backtest historique) et les critères de qualité du signal
     (confiance, consensus, multi-timeframe, R/R, force de tendance) en un verdict ✅/⚠️/🔴.
     """
-    from datetime import UTC, datetime
-
-    from app.backtest.engine import run_backtest
-    from app.backtest.schemas import BacktestConfig
-    from app.data.ohlcv import get_ohlcv
-    from app.domain.indicators import Candle
-
     interval = _TF_TO_INTERVAL.get(timeframe, timeframe if "m" in timeframe or "h" in timeframe or "d" in timeframe else "1h")
-
-    bt = None
-    try:
-        rows = await get_ohlcv(symbol, interval, limit=500)
-        candles = [
-            Candle(r["open"], r["high"], r["low"], r["close"], r.get("volume", 0.0),
-                   timestamp=datetime.fromtimestamp(r["time"], UTC))
-            for r in rows
-        ]
-        if len(candles) >= 100:
-            cfg = BacktestConfig(
-                symbol=symbol, timeframe=interval,
-                start_time=candles[0].timestamp, end_time=candles[-1].timestamp, initial_capital=10000,
-            )
-            report = await run_backtest(cfg, candles, tenant_id="verify")
-            m = report.metrics
-            bt = {
-                "trades": m.total_trades,
-                "win_rate": round(m.win_rate * 100, 1),
-                "profit_factor": m.profit_factor,
-                "total_pnl_pct": m.total_pnl_pct,
-                "max_drawdown_pct": m.max_drawdown_pct,
-                "sharpe": m.sharpe_ratio,
-            }
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Verify backtest %s échoué (%s)", symbol, exc)
+    bt = await backtest_metrics(symbol, interval)
 
     checks: list[dict] = []
     if bt and bt["trades"] >= 5:

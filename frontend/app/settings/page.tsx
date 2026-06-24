@@ -121,6 +121,10 @@ export default function SettingsPage() {
       <section className="rounded-xl border border-border bg-surface p-5">
         <h2 className="mb-3 font-semibold">Préférences d&apos;alerte</h2>
         <label className="mb-2 flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={!!s.daily_digest} onChange={(e) => save({ daily_digest: e.target.checked })} />
+          ★ Recevoir les « Trades du jour » chaque matin (digest automatique)
+        </label>
+        <label className="mb-2 flex items-center gap-2 text-sm">
           <input type="checkbox" checked={s.alert_email} onChange={(e) => save({ alert_email: e.target.checked })} />
           Email
         </label>

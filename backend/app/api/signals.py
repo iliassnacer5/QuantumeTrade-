@@ -59,6 +59,25 @@ async def generate(
     )
 
 
+@router.get("/daily-picks")
+async def daily_picks(
+    refresh: bool = False,
+    user: User = Depends(require_feature("backtesting")),
+    store: AppStore = Depends(store_dep),
+) -> dict:
+    """Sélection du jour : trades haute-conviction confirmés par backtest, par marché (mis en cache)."""
+    from datetime import UTC, datetime
+
+    today = datetime.now(UTC).date().isoformat()
+    cached = store.records.get("daily_picks", today)
+    if cached and not refresh:
+        return cached
+    picks = await signal_service.daily_picks()
+    return store.records.put(
+        "daily_picks", today, {"date": today, "picks": picks, "generated_at": datetime.now(UTC).isoformat()},
+    )
+
+
 @router.post("/verify")
 async def verify(
     body: VerifyRequest,

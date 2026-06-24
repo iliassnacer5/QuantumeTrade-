@@ -54,6 +54,7 @@ export type Settings = {
   telegram_chat_id: string | null;
   push_enabled?: boolean;
   locale?: string;
+  daily_digest?: boolean;
   mfa_enabled: boolean;
 };
 
@@ -215,6 +216,8 @@ export const api = {
     if (asset_class) p.set('asset_class', asset_class);
     return req<{ results: { symbol: string; asset_class: string; label: string }[]; classes: string[] }>(`/api/market/symbols?${p}`);
   },
+  dailyPicks: (refresh = false) =>
+    req<{ date: string; picks: any[]; generated_at: string }>(`/api/signals/daily-picks${refresh ? '?refresh=true' : ''}`),
   verifySignal: (s: Signal) =>
     req<{ verdict: string; passed: number; total: number; checks: { label: string; pass: boolean; value: any }[]; backtest: any }>(
       '/api/signals/verify',

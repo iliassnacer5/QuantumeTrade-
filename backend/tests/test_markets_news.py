@@ -51,6 +51,24 @@ async def test_mtf_confirm_structure():
     assert conf["aligned"] <= conf["total"]
 
 
+def test_daily_digest_setting_roundtrip():
+    client = TestClient(app)
+    h = _h(client)
+    assert client.get("/api/settings", headers=h).json()["daily_digest"] is False
+    r = client.patch("/api/settings", json={"daily_digest": True}, headers=h)
+    assert r.status_code == 200 and r.json()["daily_digest"] is True
+
+
+@pytest.mark.asyncio
+async def test_daily_picks_structure():
+    from app.services import signal_service
+    picks = await signal_service.daily_picks(per_market=1, classes=("crypto",))
+    assert isinstance(picks, list)
+    for p in picks:  # chaque pick est haute-conviction + backtest fiable
+        assert p["backtest"]["win_rate"] > 55 and p["backtest"]["profit_factor"] > 1.3
+        assert p["direction"] in ("BUY", "SELL") and p["adx"] > 25
+
+
 def test_scan_endpoint():
     client = TestClient(app)
     h = _h(client)

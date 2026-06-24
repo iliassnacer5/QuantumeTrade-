@@ -43,18 +43,30 @@ init_sentry()
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    """Cycle de vie : init persistance (create_all en mode SQL) + bus Redis."""
+    """Cycle de vie : init persistance + bus Redis + scheduler quotidien des trades fiables."""
+    import asyncio
+
     from app.realtime import bus
     from app.repositories.store import get_store
 
     get_store()
     await bus.init_bus()
+
+    daily_task = None
+    if get_settings().daily_digest_enabled:
+        from app.services.scheduler import daily_loop
+
+        daily_task = asyncio.create_task(daily_loop())
+
     logging.getLogger(__name__).info(
-        "Démarrage OK (in_memory=%s, redis=%s)",
+        "Démarrage OK (in_memory=%s, redis=%s, digest=%s)",
         get_settings().use_in_memory_db,
         bus.is_redis_enabled(),
+        get_settings().daily_digest_enabled,
     )
     yield
+    if daily_task:
+        daily_task.cancel()
     await bus.shutdown_bus()
 
 

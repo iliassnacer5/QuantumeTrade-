@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     sentry_dsn: str = ""
     # Cache des complétions LLM (s) — réduction des coûts (Phase 5).
     llm_cache_ttl: int = 300
+    # Automatisation : sélection quotidienne de trades (heure UTC du pré-calcul + digest).
+    daily_digest_hour: int = 7
+    daily_digest_enabled: bool = True
 
     # API
     api_host: str = "0.0.0.0"
