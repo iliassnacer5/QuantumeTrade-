@@ -30,18 +30,22 @@ export default function DashboardPage() {
   const [pnl, setPnl] = useState<Portfolio | null>(null);
   const [risk, setRisk] = useState<RiskStatus | null>(null);
   const [heat, setHeat] = useState<HeatmapItem[]>([]);
+  const [heatMix, setHeatMix] = useState(false);
   const [symbols, setSymbols] = useState<string[]>([]);
 
   useEffect(() => {
     api.symbols().then((d) => setSymbols(d.results.map((r) => r.symbol))).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    api.heatmap(heatMix).then(setHeat).catch(() => {});
+  }, [heatMix]);
+
   const loadPanels = useCallback(async () => {
     try {
-      const [p, r, h] = await Promise.all([api.portfolio(), api.riskStatus(), api.heatmap()]);
+      const [p, r] = await Promise.all([api.portfolio(), api.riskStatus()]);
       setPnl(p);
       setRisk(r);
-      setHeat(h);
     } catch {
       /* panels best-effort */
     }
@@ -169,12 +173,20 @@ export default function DashboardPage() {
           ))}
         </div>
         <div className="rounded-xl border border-border bg-surface p-4">
-          <div className="mb-1 text-xs text-muted">Heatmap 24h</div>
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-xs text-muted">Heatmap 24h {heatMix ? '(multi-marchés)' : '(watchlist)'}</span>
+            <button
+              onClick={() => setHeatMix((v) => !v)}
+              className="rounded border border-border px-2 py-0.5 text-[10px] text-muted hover:bg-background"
+            >
+              {heatMix ? 'Watchlist' : 'Multi-marchés'}
+            </button>
+          </div>
           <div className="flex flex-wrap gap-1">
             {heat.map((h) => (
               <span
                 key={h.symbol}
-                title={`${h.symbol} ${h.price}`}
+                title={`${h.symbol} · ${h.asset_class ?? ''} · ${h.price}`}
                 className={`rounded px-2 py-1 text-[11px] font-mono ${h.change_pct >= 0 ? 'bg-buy-soft text-buy' : 'bg-sell-soft text-sell'}`}
               >
                 {h.symbol.split('/')[0]} {h.change_pct >= 0 ? '+' : ''}

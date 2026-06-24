@@ -45,10 +45,15 @@ async def ohlcv(
 
 @router.get("/heatmap")
 async def heatmap(
+    mix: bool = Query(default=False, description="Mélange multi-marchés (crypto+forex+actions)"),
     user: User = Depends(current_user),
 ) -> list[dict]:
-    """Variation 24h des actifs de la watchlist (heatmap marché)."""
-    symbols = user.watchlist or ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
+    """Variation 24h : watchlist par défaut, ou un panel multi-marchés si mix=true."""
+    if mix:
+        cat = symbols_catalog.catalog()
+        symbols = cat["crypto"][:6] + cat["forex"][:5] + cat["stock"][:6]
+    else:
+        symbols = user.watchlist or ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
     return await get_heatmap(symbols)
 
 

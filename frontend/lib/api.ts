@@ -87,7 +87,7 @@ export type Portfolio = {
   positions: Position[];
 };
 
-export type HeatmapItem = { symbol: string; price: number; change_pct: number };
+export type HeatmapItem = { symbol: string; price: number; change_pct: number; asset_class?: string };
 
 export type BacktestConfig = {
   symbol: string;
@@ -235,7 +235,7 @@ export const api = {
     req<Settings>('/api/settings', { method: 'PATCH', body: JSON.stringify(patch) }),
   riskStatus: () => req<RiskStatus>('/api/risk/status'),
   portfolio: () => req<Portfolio>('/api/portfolio'),
-  heatmap: () => req<HeatmapItem[]>('/api/market/heatmap'),
+  heatmap: (mix = false) => req<HeatmapItem[]>(`/api/market/heatmap${mix ? '?mix=true' : ''}`),
   mfaSetup: () => req<{ secret: string; otpauth_uri: string }>('/api/auth/mfa/setup', { method: 'POST' }),
   mfaEnable: (code: string) => req<Me>('/api/auth/mfa/enable', { method: 'POST', body: JSON.stringify({ code }) }),
   mfaDisable: () => req<Me>('/api/auth/mfa/disable', { method: 'POST' }),
