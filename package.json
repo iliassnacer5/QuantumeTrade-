@@ -1,0 +1,17 @@
+{
+  "name": "quantum-trade-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Plateforme SaaS de trading augmentée par agents IA",
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3",
+    "turbo": "^2.0.0"
+  }
+}
