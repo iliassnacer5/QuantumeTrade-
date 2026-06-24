@@ -263,22 +263,23 @@ app mobile fonctionnelle ✅ (publication stores = `eas build`, hors périmètre
 ### 🎯 Objectif
 Passer de l'aide à la décision à l'action automatisée (avec garde-fous stricts).
 
-### 4.1 — M8 Exécution broker
-- [ ] Connexion brokers via API (Alpaca, Binance, OANDA…)
-- [ ] **Mode papier d'abord**, puis réel après validation
-- [ ] Stockage chiffré & révocable des clés API broker (jamais les fonds)
-- [ ] KYC/AML (déclencheur juridique de la Phase 0)
+### 4.1 — M8 Exécution broker ✅
+- [x] Connexion brokers via API (papier + Alpaca ; abstraction extensible OANDA/Binance)
+- [x] **Mode papier d'abord**, puis réel après validation (KYC)
+- [x] Stockage chiffré & révocable des clés API broker (crypto.py AEAD stdlib ; jamais les fonds)
+- [x] KYC/AML (prérequis de l'exécution réelle)
 
-### 4.2 — Copy-trading
-- [ ] Suivi des top traders + partage de revenus (commission)
-- [ ] Contrôles de risque sur les copies
+### 4.2 — Copy-trading ✅
+- [x] Suivi des top traders (leaderboard opt-in) + partage de revenus (commission)
+- [x] Contrôles de risque sur les copies (allocation %, plafond/trade, seuil de confiance)
 
-### 4.3 — Marketplace
-- [ ] Stratégies & agents IA personnalisés à la vente
-- [ ] API payante développeurs/institutionnels
+### 4.3 — Marketplace ✅
+- [x] Stratégies & agents IA personnalisés à la vente (config débloquée après achat)
+- [x] API payante développeurs/institutionnels (clés hashées, Elite)
 
 ### 🧪 Definition of Done P4
-Exécution paper→réel sécurisée · copy-trading fonctionnel · marketplace en ligne
+Exécution paper→réel sécurisée ✅ · copy-trading fonctionnel ✅ · marketplace en ligne ✅
+(paiements Stripe réels + publication stores = intégrations externes hors périmètre code)
 
 ---
 
