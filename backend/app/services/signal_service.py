@@ -38,15 +38,20 @@ async def _load_candles(symbol: str, timeframe: Timeframe) -> list[Candle]:
     return await markets.load_candles(symbol, interval=_TF_INTERVAL.get(timeframe, "1h"), limit=200)
 
 
-async def scan_high_conviction(asset_class: str | None = None, limit: int = 12) -> list[dict]:
-    """Scanne le marché et ne retourne QUE les configurations à forte conviction.
+async def scan_market(
+    asset_class: str | None = None,
+    timeframe: str = "1h",
+    limit: int = 20,
+    high_conviction_only: bool = False,
+) -> list[dict]:
+    """Scanne un marché et classe les symboles par conviction (rapide : analyse technique).
 
-    Léger et déterministe (analyse technique + multi-timeframe, sans LLM) pour pouvoir balayer de
-    nombreux symboles. Critères : ADX > 25 (tendance forte) ET au moins 2 unités de temps alignées.
+    Retourne TOUS les symboles analysés, triés par score de conviction, avec un flag
+    `high_conviction` (ADX>25 + tendance franche). Le multi-timeframe complet et les news sont
+    calculés à la demande quand l'utilisateur ouvre un symbole (« Analyser »).
     """
     from app.data import symbols as symbols_catalog
     from app.domain import ta
-    from app.signal_engine import mtf
     from app.models.signal import Direction
 
     universe = symbols_catalog.search(asset_class=asset_class, limit=limit)
@@ -54,31 +59,33 @@ async def scan_high_conviction(asset_class: str | None = None, limit: int = 12) 
     for item in universe:
         sym = item["symbol"]
         try:
-            candles = await markets.load_candles(sym, interval="1h", limit=200)
+            candles = await markets.load_candles(sym, interval=timeframe, limit=200)
             if len(candles) < 60:
                 continue
             a = ta.analyze(candles)
-            adx = a["metrics"].get("adx", 0) or 0
+            m = a["metrics"]
+            adx = m.get("adx", 0) or 0
             direction = Direction.BUY if a["score"] > 0.12 else Direction.SELL if a["score"] < -0.12 else Direction.HOLD
-            if direction == Direction.HOLD or adx <= 25:
-                continue
-            conf = await mtf.confirm(sym, direction)
-            if conf["aligned"] < 2:
-                continue
+            high_conv = direction != Direction.HOLD and adx > 25 and abs(a["score"]) > 0.3
+            conviction = round(abs(a["score"]) * (1 + adx / 50), 3)
             results.append({
                 "symbol": sym,
                 "asset_class": item["asset_class"],
                 "direction": direction.value,
                 "score": a["score"],
                 "adx": round(adx, 1),
-                "trend": a["metrics"].get("trend"),
-                "rsi": a["metrics"].get("rsi"),
-                "mtf": conf,
-                "price": a["metrics"].get("price"),
+                "adx_state": m.get("adx_state"),
+                "trend": m.get("trend"),
+                "rsi": m.get("rsi"),
+                "price": m.get("price"),
+                "conviction": conviction,
+                "high_conviction": high_conv,
             })
         except Exception as exc:  # noqa: BLE001
             logger.warning("Scan %s échoué (%s)", sym, exc)
-    results.sort(key=lambda r: (r["mtf"]["aligned"], r["adx"]), reverse=True)
+    if high_conviction_only:
+        results = [r for r in results if r["high_conviction"]]
+    results.sort(key=lambda r: (r["high_conviction"], r["conviction"]), reverse=True)
     return results
 
 

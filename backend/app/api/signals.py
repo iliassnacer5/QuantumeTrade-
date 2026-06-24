@@ -47,12 +47,21 @@ async def generate(
 @router.get("/scan")
 async def scan(
     asset_class: str | None = None,
-    limit: int = 12,
+    timeframe: str = "1h",
+    limit: int = 20,
+    high_conviction_only: bool = False,
     _user: User = Depends(current_user),
 ) -> dict:
-    """Scanner haute-conviction : ne retourne que les setups ADX>25 + multi-timeframe aligné."""
-    results = await signal_service.scan_high_conviction(asset_class=asset_class, limit=min(limit, 30))
-    return {"count": len(results), "results": results}
+    """Scanner de marché : classe les symboles par conviction (flag haute-conviction ADX>25)."""
+    results = await signal_service.scan_market(
+        asset_class=asset_class, timeframe=timeframe, limit=min(limit, 30),
+        high_conviction_only=high_conviction_only,
+    )
+    return {
+        "count": len(results),
+        "high_conviction": sum(1 for r in results if r["high_conviction"]),
+        "results": results,
+    }
 
 
 @router.get("")

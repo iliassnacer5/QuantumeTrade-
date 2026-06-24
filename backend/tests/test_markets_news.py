@@ -54,10 +54,14 @@ async def test_mtf_confirm_structure():
 def test_scan_endpoint():
     client = TestClient(app)
     h = _h(client)
-    r = client.get("/api/signals/scan", params={"asset_class": "crypto", "limit": 5}, headers=h)
+    r = client.get("/api/signals/scan", params={"asset_class": "crypto", "limit": 6}, headers=h)
     assert r.status_code == 200
     body = r.json()
-    assert "count" in body and isinstance(body["results"], list)
-    # tous les résultats respectent le filtre haute-conviction
+    assert "count" in body and "high_conviction" in body and isinstance(body["results"], list)
+    # le scan classe par conviction et expose le flag haute-conviction
     for res in body["results"]:
-        assert res["adx"] > 25 and res["mtf"]["aligned"] >= 2 and res["direction"] in ("BUY", "SELL")
+        assert "conviction" in res and "high_conviction" in res and "adx" in res
+    # filtre haute-conviction
+    r2 = client.get("/api/signals/scan", params={"asset_class": "crypto", "high_conviction_only": "true", "limit": 6}, headers=h)
+    for res in r2.json()["results"]:
+        assert res["high_conviction"] is True

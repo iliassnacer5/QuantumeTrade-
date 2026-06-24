@@ -214,8 +214,15 @@ export const api = {
     if (asset_class) p.set('asset_class', asset_class);
     return req<{ results: { symbol: string; asset_class: string; label: string }[]; classes: string[] }>(`/api/market/symbols?${p}`);
   },
-  scan: (asset_class?: string, limit = 12) =>
-    req<{ count: number; results: any[] }>(`/api/signals/scan?${new URLSearchParams({ ...(asset_class ? { asset_class } : {}), limit: String(limit) })}`),
+  scan: (asset_class?: string, timeframe = '1h', limit = 20, high_conviction_only = false) =>
+    req<{ count: number; high_conviction: number; results: any[] }>(
+      `/api/signals/scan?${new URLSearchParams({
+        ...(asset_class ? { asset_class } : {}),
+        timeframe,
+        limit: String(limit),
+        high_conviction_only: String(high_conviction_only),
+      })}`,
+    ),
   generate: (asset: string, timeframe: string, notify = false) =>
     req<Signal>('/api/signals/generate', { method: 'POST', body: JSON.stringify({ asset, timeframe, notify }) }),
   plans: () => req<{ id: string; price: number; features: string[] }[]>('/api/billing/plans'),
