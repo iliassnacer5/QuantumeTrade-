@@ -5,17 +5,18 @@ Choisit l'implémentation selon la configuration :
 - `use_in_memory_db=false` -> repositories SQL (SQLAlchemy, Postgres en prod)
 
 L'interface est identique dans les deux cas : le reste du code est agnostique du moteur.
+Architecture 100% synchrone (cohérente Phases 0-2).
 """
 
 from __future__ import annotations
 
 from typing import Protocol
 
+from app.backtest.schemas import BacktestReport
 from app.core.config import get_settings
 from app.models.entities import StoredSignal, Tenant, User
 
 
-# Contrats minimaux (documentation/typage ; les deux implémentations s'y conforment).
 class _Users(Protocol):
     def create(self, *, tenant_id: str, email: str, password_hash: str, full_name: str | None) -> User: ...
     def get(self, user_id: str) -> User | None: ...
@@ -40,16 +41,30 @@ class _Market(Protocol):
     def count(self, symbol: str, timeframe: str) -> int: ...
 
 
+class _Backtests(Protocol):
+    def save_report(self, report: BacktestReport) -> None: ...
+    def list_for_tenant(self, tenant_id: str, limit: int = 50) -> list[BacktestReport]: ...
+
+
+class _Journal(Protocol):
+    def add(self, tenant_id: str, entry: dict) -> None: ...
+    def list_for_tenant(self, tenant_id: str, limit: int = 200) -> list[dict]: ...
+
+
 class AppStore:
     users: _Users
     tenants: _Tenants
     signals: _Signals
     market: _Market
+    backtests: _Backtests
+    journal: _Journal
 
     def __init__(self) -> None:
         settings = get_settings()
         if settings.use_in_memory_db:
             from app.repositories.memory import (
+                BacktestRepository,
+                JournalRepository,
                 SignalRepository,
                 TenantRepository,
                 UserRepository,
@@ -60,8 +75,12 @@ class AppStore:
             self.tenants = TenantRepository()
             self.signals = SignalRepository()
             self.market = NoopMarketRepository()
+            self.backtests = BacktestRepository()
+            self.journal = JournalRepository()
         else:
             from app.repositories.sql import (
+                SqlBacktestRepository,
+                SqlJournalRepository,
                 SqlMarketRepository,
                 SqlSignalRepository,
                 SqlTenantRepository,
@@ -74,6 +93,8 @@ class AppStore:
             self.tenants = SqlTenantRepository(sm)
             self.signals = SqlSignalRepository(sm)
             self.market = SqlMarketRepository(sm)
+            self.backtests = SqlBacktestRepository(sm)
+            self.journal = SqlJournalRepository(sm)
 
 
 _store: AppStore | None = None

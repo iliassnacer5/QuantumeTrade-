@@ -39,13 +39,35 @@ class Settings(BaseSettings):
     # LLM
     anthropic_api_key: str = ""
     google_api_key: str = ""
-    litellm_default_model: str = "claude-sonnet-4-6"
+    litellm_default_model: str = "gemini/gemini-2.5-pro"
+    llm_enabled: bool = True
+    # Modèles par rôle (overridables par env) — stratégie hybride Claude/Gemini.
+    # NB : la série gemini-1.5 a été retirée de l'API v1beta ; on utilise la série 2.5 (GA).
+    # NB : gemini-2.5-pro est un modèle "thinking" : avec un petit budget de tokens il consomme tout
+    # en raisonnement et renvoie un contenu vide. On réserve 2.5-pro au raisonnement (gros budget) et
+    # on utilise 2.5-flash pour les rôles à réponse courte (vision, grounding, fast).
+    llm_model_master: str = "gemini/gemini-2.5-flash"
+    llm_model_reasoning: str = "gemini/gemini-2.5-pro"
+    llm_model_fast: str = "gemini/gemini-2.5-flash"
+    llm_model_vision: str = "gemini/gemini-2.5-flash"
+    llm_model_grounding: str = "gemini/gemini-2.5-flash"
+    
+    # LLM Budget Guards
+    llm_max_requests_per_minute: int = 15
+    llm_max_tokens_per_minute: int = 30000
+    llm_daily_budget_usd: float = 1.0
 
     # Données marché / news
     binance_api_key: str = ""
     binance_api_secret: str = ""
     finnhub_api_key: str = ""
     newsapi_key: str = ""
+    # Multi-marchés (Phase 2)
+    alpaca_api_key: str = ""
+    alpaca_api_secret: str = ""
+    oanda_api_key: str = ""
+    oanda_account_id: str = ""
+    fred_api_key: str = ""
 
     # Facturation
     stripe_secret_key: str = ""
@@ -56,6 +78,9 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     resend_api_key: str = ""
     email_from: str = "alerts@quantumtrade.ai"
+    twilio_account_sid: str = ""
+    twilio_auth_token: str = ""
+    twilio_from: str = ""
 
     @property
     def cors_origins_list(self) -> list[str]:

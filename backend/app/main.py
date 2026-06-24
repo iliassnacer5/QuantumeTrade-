@@ -19,6 +19,8 @@ from app.api import (
     settings as settings_api,
     signals,
     ws,
+    backtest,
+    agents,
 )
 from app.core.config import get_settings
 from app.core.ratelimit import RateLimitMiddleware
@@ -72,6 +74,8 @@ app.include_router(settings_api.router)
 app.include_router(billing.router)
 app.include_router(audit.router)
 app.include_router(ws.router)
+app.include_router(backtest.router)
+app.include_router(agents.router)
 
 
 @app.get("/")

@@ -1,17 +1,27 @@
 """M3 — Signal Engine.
 
-Orchestre les agents, applique l'arbitrage du Master Agent, calcule les niveaux de risque
-(déterministe) et produit une `SignalCard` consolidée et explicable.
+Orchestre TOUS les agents (Technique, Sentiment, Pattern, Fondamental, Macro, Risque), applique
+l'arbitrage du Master Agent (pondération dynamique + apprentissage Journal), calcule les niveaux de
+risque (déterministe) et produit une `SignalCard` consolidée, explicable et avec le détail des agents.
 """
 
 from __future__ import annotations
 
-from app.agents import master, sentiment, technical
+from app.agents import fundamental, macro as macro_agent, pattern, risk_agent, sentiment, technical, volume
+from app.agents import master
+from app.agents.base import AgentOutput
 from app.agents.sentiment import NewsItem
 from app.domain import indicators as ind
 from app.domain.indicators import Candle
 from app.domain.risk import RiskParams, compute_levels
 from app.models.signal import Direction, SignalCard, Timeframe
+
+
+def _breakdown(outputs: list[AgentOutput]) -> list[dict]:
+    return [
+        {"name": o.name, "score": o.score, "confidence": o.confidence, "rationale": o.rationale}
+        for o in outputs
+    ]
 
 
 async def generate_signal(
@@ -23,23 +33,46 @@ async def generate_signal(
     risk: RiskParams,
     timeframe: Timeframe = Timeframe.SWING,
     weights: dict[str, float] | None = None,
+    ratios: dict | None = None,
+    macro_data: dict | None = None,
+    risk_context: dict | None = None,
+    journal_multipliers: dict[str, float] | None = None,
 ) -> SignalCard:
-    """Produit une Signal Card à partir des données de marché et de sentiment."""
+    """Produit une Signal Card à partir des données de marché, sentiment, fondamentaux et macro."""
     news = news or []
 
-    # 1. Agents en parallèle (logiquement) -> sorties normalisées
-    tech_out = await technical.run(candles)
-    sent_out = await sentiment.run(news, fear_greed)
+    # 1. Agents
+    outputs: list[AgentOutput] = [
+        await technical.run(candles),
+        await volume.run(candles),
+        await sentiment.run(news, fear_greed),
+        await pattern.run(candles),
+    ]
+    if ratios is not None or "/" in asset:
+        outputs.append(await fundamental.run(asset, ratios))
+    if macro_data is not None:
+        outputs.append(await macro_agent.run(macro_data))
 
-    # 2. Arbitrage Master
-    decision = master.decide([tech_out, sent_out], weights)
+    risk_out = None
+    if risk_context is not None:
+        risk_out = risk_agent.run_sync(
+            exposure_pct=risk_context.get("exposure_pct", 0.0),
+            drawdown_pct=risk_context.get("drawdown_pct", 0.0),
+            correlation=risk_context.get("correlation", 0.0),
+            returns=risk_context.get("returns"),
+        )
+        outputs.append(risk_out)
+
+    # 2. Arbitrage Master (pondération dynamique + apprentissage)
+    decision = master.decide(
+        outputs, weights=weights, journal_multipliers=journal_multipliers, risk_output=risk_out
+    )
 
     entry = candles[-1].close
-    atr_val = ind.atr(candles, 14) or (entry * 0.01)  # fallback volatilité 1%
+    atr_val = ind.atr(candles, 14) or (entry * 0.01)
+    breakdown = _breakdown(outputs)
 
-    # 3. Niveaux de risque déterministes
     if decision.direction == Direction.HOLD:
-        # Pas de position : niveaux indicatifs neutres autour de l'entrée.
         return SignalCard(
             asset=asset,
             direction=Direction.HOLD,
@@ -50,10 +83,10 @@ async def generate_signal(
             confidence=decision.confidence,
             timeframe=timeframe,
             rationale=decision.rationale,
+            agents=breakdown,
         )
 
     levels = compute_levels(decision.direction, entry, atr_val, risk)
-
     return SignalCard(
         asset=asset,
         direction=decision.direction,
@@ -69,4 +102,5 @@ async def generate_signal(
         position_size=levels.position_size,
         position_value=levels.position_value,
         risk_amount=levels.risk_amount,
+        agents=breakdown,
     )

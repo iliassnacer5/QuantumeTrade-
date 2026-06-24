@@ -20,7 +20,7 @@ def _isolate(monkeypatch):
     async def fake_fetch(*args, **kwargs):  # noqa: ANN002, ANN003
         raise RuntimeError("offline test")
 
-    monkeypatch.setattr("app.services.signal_service.binance.fetch_klines", fake_fetch)
+    monkeypatch.setattr("app.data.binance.fetch_klines", fake_fetch)
     yield
 
 

@@ -71,7 +71,7 @@ def test_full_api_flow_on_sql(sql_backend, monkeypatch):
     async def fake_fetch(*a, **k):
         raise RuntimeError("offline")
 
-    monkeypatch.setattr("app.services.signal_service.binance.fetch_klines", fake_fetch)
+    monkeypatch.setattr("app.data.binance.fetch_klines", fake_fetch)
 
     client = TestClient(app)
     r = client.post("/api/auth/register", json={"email": "sql@test.com", "password": "password123"})

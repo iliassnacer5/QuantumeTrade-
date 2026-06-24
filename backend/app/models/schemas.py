@@ -69,6 +69,10 @@ class SettingsRequest(BaseModel):
     alert_email: bool | None = None
     alert_telegram: bool | None = None
     telegram_chat_id: str | None = None
+    alert_webhook: bool | None = None
+    webhook_url: str | None = None
+    alert_sms: bool | None = None
+    phone: str | None = None
 
 
 class SettingsResponse(BaseModel):
@@ -79,4 +83,8 @@ class SettingsResponse(BaseModel):
     alert_email: bool
     alert_telegram: bool
     telegram_chat_id: str | None
+    alert_webhook: bool
+    webhook_url: str | None
+    alert_sms: bool
+    phone: str | None
     mfa_enabled: bool

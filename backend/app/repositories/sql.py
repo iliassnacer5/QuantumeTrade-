@@ -17,8 +17,9 @@ from datetime import UTC, datetime
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.models.db import Base, OhlcvORM, SignalORM, TenantORM, UserORM
+from app.models.db import Base, OhlcvORM, SignalORM, TenantORM, UserORM, BacktestRunRow
 from app.models.entities import StoredSignal, Tenant, User
+from app.backtest.schemas import BacktestReport, BacktestConfig, BacktestMetrics, BacktestTrade, BacktestEquityPoint
 
 
 def make_engine_sessionmaker(url: str):
@@ -48,6 +49,10 @@ def _user_to_entity(o: UserORM) -> User:
         alert_email=o.alert_email,
         alert_telegram=o.alert_telegram,
         telegram_chat_id=o.telegram_chat_id,
+        alert_webhook=o.alert_webhook,
+        webhook_url=o.webhook_url,
+        alert_sms=o.alert_sms,
+        phone=o.phone,
         mfa_secret=o.mfa_secret,
     )
 
@@ -104,6 +109,10 @@ class SqlUserRepository:
             o.alert_email = user.alert_email
             o.alert_telegram = user.alert_telegram
             o.telegram_chat_id = user.telegram_chat_id
+            o.alert_webhook = user.alert_webhook
+            o.webhook_url = user.webhook_url
+            o.alert_sms = user.alert_sms
+            o.phone = user.phone
             o.mfa_secret = user.mfa_secret
             s.commit()
             return _user_to_entity(o)
@@ -227,6 +236,51 @@ class NoopMarketRepository:
     def count(self, symbol: str, timeframe: str) -> int:
         return 0
 
+class SqlBacktestRepository:
+    def __init__(self, sm: sessionmaker[Session]) -> None:
+        self._sm = sm
+
+    def save_report(self, report: BacktestReport) -> None:
+        with self._sm() as s:
+            o = BacktestRunRow(
+                id=report.id,
+                tenant_id=report.tenant_id,
+                symbol=report.config.symbol,
+                timeframe=report.config.timeframe,
+                start_time=report.config.start_time,
+                end_time=report.config.end_time,
+                initial_capital=report.config.initial_capital,
+                params=report.config.model_dump_json(),
+                metrics=report.metrics.model_dump_json(),
+                created_at=report.created_at
+            )
+            s.add(o)
+            s.commit()
+            
+    def list_for_tenant(self, tenant_id: str, limit: int = 50) -> list[BacktestReport]:
+        with self._sm() as s:
+            rows = s.scalars(
+                select(BacktestRunRow)
+                .where(BacktestRunRow.tenant_id == tenant_id)
+                .order_by(BacktestRunRow.created_at.desc())
+                .limit(limit)
+            ).all()
+            
+            reports = []
+            for r in rows:
+                config = BacktestConfig.model_validate_json(r.params or "{}")
+                metrics = BacktestMetrics.model_validate_json(r.metrics or "{}")
+                reports.append(BacktestReport(
+                    id=r.id,
+                    tenant_id=r.tenant_id,
+                    config=config,
+                    metrics=metrics,
+                    trades=[],
+                    equity_curve=[],
+                    created_at=r.created_at
+                ))
+            return reports
+
 
 def _signal_payload(r: SignalORM) -> dict:
     return {
@@ -244,3 +298,56 @@ def _signal_payload(r: SignalORM) -> dict:
         "position_value": r.position_value,
         "created_at": r.created_at.isoformat() if r.created_at else None,
     }
+
+
+class SqlJournalRepository:
+    """Journal d'apprentissage persistant (SQL)."""
+
+    def __init__(self, sm) -> None:  # noqa: ANN001
+        self._sm = sm
+
+    def add(self, tenant_id: str, entry: dict) -> None:
+        import json as _json
+        import uuid as _uuid
+
+        from app.models.db import JournalEntryORM
+
+        with self._sm() as s:
+            s.add(
+                JournalEntryORM(
+                    id=str(_uuid.uuid4()),
+                    tenant_id=tenant_id,
+                    signal_id=entry.get("signal_id"),
+                    symbol=entry.get("symbol", ""),
+                    direction=entry.get("direction", ""),
+                    outcome=entry.get("outcome", "open"),
+                    pnl=entry.get("pnl"),
+                    agent_scores=_json.dumps(entry.get("agent_scores") or {}),
+                )
+            )
+            s.commit()
+
+    def list_for_tenant(self, tenant_id: str, limit: int = 200) -> list[dict]:
+        import json as _json
+
+        from sqlalchemy import select as _select
+
+        from app.models.db import JournalEntryORM
+
+        with self._sm() as s:
+            rows = s.scalars(
+                _select(JournalEntryORM)
+                .where(JournalEntryORM.tenant_id == tenant_id)
+                .order_by(JournalEntryORM.created_at.desc())
+                .limit(limit)
+            ).all()
+            return [
+                {
+                    "outcome": r.outcome,
+                    "direction": r.direction,
+                    "symbol": r.symbol,
+                    "pnl": r.pnl,
+                    "agent_scores": _json.loads(r.agent_scores or "{}"),
+                }
+                for r in rows
+            ]

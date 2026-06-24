@@ -38,10 +38,14 @@ class User:
     max_exposure_pct: float = 50.0
     max_daily_signals: int = 50
     daily_loss_limit_pct: float = 5.0
-    # Préférences d'alerte (Lot 3)
+    # Préférences d'alerte (Lot 3 + Phase 2 multicanal)
     alert_email: bool = True
     alert_telegram: bool = False
     telegram_chat_id: str | None = None
+    alert_webhook: bool = False
+    webhook_url: str | None = None
+    alert_sms: bool = False
+    phone: str | None = None
     # MFA TOTP (Lot 5)
     mfa_secret: str | None = None
     created_at: datetime = field(default_factory=_now)

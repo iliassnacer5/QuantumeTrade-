@@ -8,7 +8,14 @@
       "Bash(git rm *)",
       "Bash(git -c user.email=ci@quantum.ai -c user.name=setup commit -q -m 'Phase 0: monorepo scaffold, backend FastAPI /health, frontend Next.js, infra, CI, docs & legal *)",
       "Bash(git --no-pager log --oneline)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "PowerShell(Start-Process \"http://localhost:3000\")",
+      "PowerShell(Start-Process \"http://localhost:8080/docs\")",
+      "Bash(python -m pytest tests/test_phase1_complete.py::test_audit_log -q)",
+      "Bash(python -m pytest tests/test_api_flow.py::test_full_value_loop -q)",
+      "Bash(docker compose *)",
+      "Bash(python -m pytest tests/test_phase2.py -q)",
+      "Bash(git check-ignore *)"
     ]
   }
 }

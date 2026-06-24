@@ -76,6 +76,21 @@ async def run(candles: list[Candle]) -> AgentOutput:
     score = _clamp(sum(signals) / max(len(signals), 1))
     confidence = min(1.0, 0.4 + 0.15 * len(signals))
     rationale = "Analyse technique : " + " ; ".join(notes) + "."
+    
+    # Enrichissement LLM (optionnel)
+    from app.agents import llm
+    if llm.available() and notes:
+        try:
+            prompt = (
+                f"Voici les signaux techniques détectés pour un actif (prix = {price}) : {', '.join(notes)}. "
+                "Génère une explication concise (2 phrases max) du contexte technique. Ne donne pas de conseil d'investissement."
+            )
+            llm_rationale = await llm.complete(prompt, role="fast", max_tokens=100)
+            if llm_rationale:
+                rationale = llm_rationale.strip()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("Erreur LLM technical : %s", e)
 
     return AgentOutput(
         name=name,

@@ -16,7 +16,7 @@ def offline(monkeypatch):
     async def fake_24h(*a, **k):
         raise RuntimeError("offline")
 
-    monkeypatch.setattr("app.services.signal_service.binance.fetch_klines", fake_klines)
+    monkeypatch.setattr("app.data.binance.fetch_klines", fake_klines)
     monkeypatch.setattr("app.data.ohlcv._binance_ohlcv", fake_24h)
     monkeypatch.setattr("app.data.heatmap._binance_24h", fake_24h)
     yield

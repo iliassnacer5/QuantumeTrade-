@@ -80,6 +80,44 @@ export type Portfolio = {
 
 export type HeatmapItem = { symbol: string; price: number; change_pct: number };
 
+export type BacktestConfig = {
+  symbol: string;
+  timeframe: string;
+  start_time: string;
+  end_time: string;
+  initial_capital: number;
+  risk_per_trade_pct: number;
+  use_llm?: boolean;
+};
+
+export type BacktestMetrics = {
+  total_trades: number;
+  win_rate: number;
+  profit_factor: number;
+  total_pnl: number;
+  total_pnl_pct: number;
+  max_drawdown_pct: number;
+  sharpe_ratio: number;
+};
+
+export type BacktestReport = {
+  id: string;
+  config: BacktestConfig;
+  metrics: BacktestMetrics;
+  trades: any[];
+  equity_curve: any[];
+  created_at: string;
+};
+
+export type AgentInfo = { name: string; role: string; desc: string; model: string };
+
+export type AgentStatus = {
+  status: string;
+  llm_enabled: boolean;
+  providers: { anthropic: boolean; google: boolean };
+  agents: AgentInfo[];
+};
+
 function token(): string | null {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem('qta_token');
@@ -138,6 +176,9 @@ export const api = {
   mfaSetup: () => req<{ secret: string; otpauth_uri: string }>('/api/auth/mfa/setup', { method: 'POST' }),
   mfaEnable: (code: string) => req<Me>('/api/auth/mfa/enable', { method: 'POST', body: JSON.stringify({ code }) }),
   mfaDisable: () => req<Me>('/api/auth/mfa/disable', { method: 'POST' }),
+  runBacktest: (config: BacktestConfig) => req<BacktestReport>('/api/backtest/run', { method: 'POST', body: JSON.stringify(config) }),
+  listBacktests: () => req<BacktestReport[]>('/api/backtest/reports'),
+  agentsStatus: () => req<AgentStatus>('/api/agents/status'),
 };
 
 export function openSignalStream(onSignal: (s: Signal) => void): WebSocket | null {

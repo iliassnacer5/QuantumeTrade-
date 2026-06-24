@@ -41,6 +41,33 @@ async def run(news: list[NewsItem], fear_greed: int | None = None) -> AgentOutpu
     if not news and fear_greed is None:
         return AgentOutput(name, 0.0, 0.1, "Pas de news disponibles.")
 
+    from app.agents import llm
+    import json
+
+    scores = []
+    
+    if llm.available() and news:
+        try:
+            headlines = [n.headline for n in news if n.sentiment is None]
+            if headlines:
+                prompt = (
+                    "Score le sentiment financier global de ces titres d'actualité de -1.0 (très baissier) "
+                    "à 1.0 (très haussier). Réponds UNIQUEMENT avec un nombre décimal."
+                    f"\nTitres: {headlines}"
+                )
+                resp = await llm.complete(prompt, role="fast", max_tokens=10)
+                try:
+                    llm_score = float(resp.strip())
+                    llm_score = max(-1.0, min(1.0, llm_score))
+                    for n in news:
+                        if n.sentiment is None:
+                            n.sentiment = llm_score
+                except ValueError:
+                    pass # Fallback au lexique
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("Erreur LLM sentiment : %s", e)
+
     scores = [n.sentiment if n.sentiment is not None else _lexicon_score(n.headline) for n in news]
     news_score = sum(scores) / len(scores) if scores else 0.0
 

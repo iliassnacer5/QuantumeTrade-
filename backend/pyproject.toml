@@ -34,8 +34,9 @@ agents = [
     "langgraph>=0.1",
     "litellm>=1.40",
     "pandas>=2.2",
-    "pandas-ta>=0.3.14b",
+
     "numpy>=1.26",
+    "matplotlib>=3.8.0",
 ]
 
 [build-system]

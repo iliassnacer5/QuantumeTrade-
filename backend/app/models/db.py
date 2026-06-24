@@ -43,6 +43,10 @@ class UserORM(Base):
     alert_email: Mapped[bool] = mapped_column(Boolean, default=True)
     alert_telegram: Mapped[bool] = mapped_column(Boolean, default=False)
     telegram_chat_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    alert_webhook: Mapped[bool] = mapped_column(Boolean, default=False)
+    webhook_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    alert_sms: Mapped[bool] = mapped_column(Boolean, default=False)
+    phone: Mapped[str | None] = mapped_column(String, nullable=True)
     mfa_secret: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -72,6 +76,80 @@ class OhlcvORM(Base):
     low: Mapped[float] = mapped_column(Float)
     close: Mapped[float] = mapped_column(Float)
     volume: Mapped[float] = mapped_column(Float)
+
+
+class JournalEntryORM(Base):
+    """Mémoire d'apprentissage : issue d'un signal (gagnant/perdant) par agent."""
+
+    __tablename__ = "journal_entries"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String, index=True)
+    signal_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    symbol: Mapped[str] = mapped_column(String)
+    direction: Mapped[str] = mapped_column(String)
+    outcome: Mapped[str] = mapped_column(String)  # win | loss | open
+    pnl: Mapped[float | None] = mapped_column(Float, nullable=True)
+    agent_scores: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON {agent: score}
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class BacktestRunRow(Base):
+    """Résultat global d'un backtest de stratégie."""
+
+    __tablename__ = "backtest_runs"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    symbol: Mapped[str] = mapped_column(String, index=True)
+    timeframe: Mapped[str] = mapped_column(String)
+    start_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    end_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    initial_capital: Mapped[float] = mapped_column(Float)
+    params: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON config
+    metrics: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON KPI
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+class BacktestTradeRow(Base):
+    """Trade individuel exécuté lors d'un backtest."""
+
+    __tablename__ = "backtest_trades"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    backtest_id: Mapped[str] = mapped_column(ForeignKey("backtest_runs.id", ondelete="CASCADE"), index=True)
+    symbol: Mapped[str] = mapped_column(String)
+    direction: Mapped[str] = mapped_column(String)
+    entry_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    exit_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    entry_price: Mapped[float] = mapped_column(Float)
+    exit_price: Mapped[float] = mapped_column(Float)
+    size: Mapped[float] = mapped_column(Float)
+    pnl: Mapped[float] = mapped_column(Float)
+    pnl_pct: Mapped[float] = mapped_column(Float)
+    duration_minutes: Mapped[float] = mapped_column(Float)
+
+class BacktestEquityRow(Base):
+    """Point temporel de la courbe d'équité d'un backtest."""
+
+    __tablename__ = "backtest_equity_points"
+    backtest_id: Mapped[str] = mapped_column(ForeignKey("backtest_runs.id", ondelete="CASCADE"), primary_key=True)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    equity: Mapped[float] = mapped_column(Float)
+    drawdown_pct: Mapped[float] = mapped_column(Float)
+
+class AgentRunLogRow(Base):
+    """Journal d'exécution détaillée d'un agent."""
+
+    __tablename__ = "agent_run_logs"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String, index=True)
+    agent_name: Mapped[str] = mapped_column(String, index=True)
+    symbol: Mapped[str] = mapped_column(String)
+    timeframe: Mapped[str] = mapped_column(String)
+    latency_ms: Mapped[float] = mapped_column(Float)
+    llm_cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    input_hash: Mapped[str | None] = mapped_column(String, nullable=True)
+    output: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON AgentOutput
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
 
 
 class SignalORM(Base):

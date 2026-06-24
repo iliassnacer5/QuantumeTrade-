@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 
 from app.models.entities import StoredSignal, Tenant, User
+from app.backtest.schemas import BacktestReport
 
 
 class UserRepository:
@@ -72,3 +73,28 @@ class SignalRepository:
 
     def get(self, signal_id: str) -> StoredSignal | None:
         return self._signals.get(signal_id)
+
+class BacktestRepository:
+    def __init__(self) -> None:
+        self._reports: dict[str, BacktestReport] = {}
+
+    def save_report(self, report: BacktestReport) -> None:
+        self._reports[report.id] = report
+
+    def list_for_tenant(self, tenant_id: str, limit: int = 50) -> list[BacktestReport]:
+        items = [r for r in self._reports.values() if r.tenant_id == tenant_id]
+        items.sort(key=lambda r: r.created_at, reverse=True)
+        return items[:limit]
+
+
+class JournalRepository:
+    """Journal d'apprentissage en mémoire (entrées d'issue de signaux par agent)."""
+
+    def __init__(self) -> None:
+        self._entries: dict[str, list[dict]] = {}
+
+    def add(self, tenant_id: str, entry: dict) -> None:
+        self._entries.setdefault(tenant_id, []).append(entry)
+
+    def list_for_tenant(self, tenant_id: str, limit: int = 200) -> list[dict]:
+        return list(reversed(self._entries.get(tenant_id, [])))[:limit]

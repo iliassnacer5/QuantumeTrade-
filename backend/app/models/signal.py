@@ -41,4 +41,6 @@ class SignalCard(BaseModel):
     position_value: float | None = Field(default=None, description="Valeur de la position en devise")
     risk_amount: float | None = Field(default=None, description="Montant risqué en devise")
     risk_warning: str | None = Field(default=None, description="Avertissement de risque éventuel")
+    # Détail par agent (transparence / explicabilité)
+    agents: list[dict] = Field(default_factory=list, description="Sorties des agents [{name,score,confidence,rationale}]")
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

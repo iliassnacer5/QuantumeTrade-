@@ -21,6 +21,10 @@ def _to_response(u: User) -> SettingsResponse:
         alert_email=u.alert_email,
         alert_telegram=u.alert_telegram,
         telegram_chat_id=u.telegram_chat_id,
+        alert_webhook=u.alert_webhook,
+        webhook_url=u.webhook_url,
+        alert_sms=u.alert_sms,
+        phone=u.phone,
         mfa_enabled=u.mfa_enabled,
     )
 
@@ -50,5 +54,13 @@ async def update_settings(
         user.alert_telegram = body.alert_telegram
     if body.telegram_chat_id is not None:
         user.telegram_chat_id = body.telegram_chat_id or None
+    if body.alert_webhook is not None:
+        user.alert_webhook = body.alert_webhook
+    if body.webhook_url is not None:
+        user.webhook_url = body.webhook_url or None
+    if body.alert_sms is not None:
+        user.alert_sms = body.alert_sms
+    if body.phone is not None:
+        user.phone = body.phone or None
     store.users.update(user)
     return _to_response(user)

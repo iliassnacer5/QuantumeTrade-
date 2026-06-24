@@ -1,4 +1,4 @@
-"""Notificateurs multicanal (MVP : email via Resend, Telegram).
+"""Notificateurs multicanal : email (Resend), Telegram, webhook, SMS (Twilio), push.
 
 Si les clés ne sont pas configurées, les envois sont journalisés (no-op gracieux) afin que le
 pipeline complet fonctionne en dev/test sans dépendances externes.
@@ -65,9 +65,73 @@ async def send_email(to: str, subject: str, text: str) -> bool:
         return False
 
 
-async def notify_signal(card: SignalCard, *, email: str | None = None, telegram_chat_id: str | None = None) -> None:
+async def send_webhook(url: str, card: SignalCard) -> bool:
+    """POST le signal (JSON) vers un webhook utilisateur."""
+    if not url:
+        return False
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(url, json=card.model_dump(mode="json"))
+            resp.raise_for_status()
+        return True
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Webhook échoué (%s)", exc)
+        return False
+
+
+async def send_sms(to: str, text: str) -> bool:
+    """SMS via Twilio (no-op si non configuré)."""
+    s = get_settings()
+    sid = getattr(s, "twilio_account_sid", "") or ""
+    token = getattr(s, "twilio_auth_token", "") or ""
+    from_ = getattr(s, "twilio_from", "") or ""
+    if not (sid and token and from_):
+        logger.info("[sms:noop] to=%s", to)
+        return False
+    try:
+        import httpx
+
+        url = f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json"
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                url, auth=(sid, token), data={"To": to, "From": from_, "Body": text[:1500]}
+            )
+            resp.raise_for_status()
+        return True
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Envoi SMS échoué (%s)", exc)
+        return False
+
+
+async def send_push(token: str, text: str) -> bool:
+    """Notification push (stub : à brancher sur FCM/APNs en Phase 3 mobile)."""
+    if not token:
+        return False
+    logger.info("[push:noop] token=%s %s", token[:8], text.replace("\n", " | "))
+    return False
+
+
+async def notify_signal(
+    card: SignalCard,
+    *,
+    email: str | None = None,
+    telegram_chat_id: str | None = None,
+    webhook_url: str | None = None,
+    sms_to: str | None = None,
+    push_token: str | None = None,
+) -> None:
+    """Diffuse un signal sur tous les canaux activés (chacun dégrade gracieusement)."""
     text = format_signal(card)
+    subject = f"Nouveau signal {card.asset} — {card.direction.value}"
     if email:
-        await send_email(email, f"Nouveau signal {card.asset} — {card.direction.value}", text)
+        await send_email(email, subject, text)
     if telegram_chat_id:
         await send_telegram(telegram_chat_id, text)
+    if webhook_url:
+        await send_webhook(webhook_url, card)
+    if sms_to:
+        await send_sms(sms_to, text)
+    if push_token:
+        await send_push(push_token, text)

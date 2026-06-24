@@ -42,9 +42,13 @@ if (-not (Test-Path $envFile)) {
 }
 
 # 2. Build + up
-$buildArg = if ($NoBuild) { @() } else { @("--build") }
-Write-Host "==> docker compose up -d $buildArg" -ForegroundColor Cyan
-docker compose -f $compose up -d @buildArg
+if ($NoBuild) {
+    Write-Host "==> docker compose up -d" -ForegroundColor Cyan
+    docker compose -f $compose up -d
+} else {
+    Write-Host "==> docker compose up -d --build" -ForegroundColor Cyan
+    docker compose -f $compose up -d --build
+}
 if ($LASTEXITCODE -ne 0) { Write-Host "ERREUR au demarrage de la stack." -ForegroundColor Red; exit 1 }
 
 # 3. Attente du backend (health)
@@ -62,14 +66,17 @@ Write-Host ""
 
 if ($ready) {
     Write-Host ""
-    Write-Host "  Stack prete !" -ForegroundColor Green
+    Write-Host "  Stack prete et EN COURS D'EXECUTION (conteneurs Docker en arriere-plan)" -ForegroundColor Green
     Write-Host "  ------------------------------------------" -ForegroundColor Green
     Write-Host "  Dashboard  : http://localhost:3000" -ForegroundColor Green
     Write-Host "  API        : http://localhost:8080" -ForegroundColor Green
     Write-Host "  API docs   : http://localhost:8080/docs" -ForegroundColor Green
     Write-Host "  ------------------------------------------" -ForegroundColor Green
-    Write-Host "  Arret : .\stop.ps1   |   Logs : .\start.ps1 -Logs" -ForegroundColor DarkGray
+    Write-Host "  Etat  : docker compose -f infra/docker-compose.yml ps" -ForegroundColor DarkGray
+    Write-Host "  Logs  : .\start.ps1 -Logs   |   Arret : .\stop.ps1" -ForegroundColor DarkGray
     Write-Host ""
+    Write-Host "  Ouverture du dashboard dans le navigateur..." -ForegroundColor Cyan
+    Start-Process "http://localhost:3000"
 } else {
     Write-Host "  Le backend n'a pas repondu a temps. Voir les logs :" -ForegroundColor Yellow
     Write-Host "  docker compose -f infra/docker-compose.yml logs backend" -ForegroundColor Yellow
