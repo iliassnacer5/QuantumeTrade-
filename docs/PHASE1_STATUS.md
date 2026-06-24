@@ -47,9 +47,18 @@ inscription → onboarding → /signals/generate
 | Tests d'intégration verts | ✅ 32/32 |
 | Déployé sur staging | ⬜ Action infra (CI build OK) |
 
+## Renforcements MVP livrés
+- **Bascule Postgres réelle** : repositories SQL (SQLAlchemy) interface-identiques aux repos mémoire,
+  sélectionnés par `USE_IN_MEMORY_DB`. Validée par `tests/test_postgres_switch.py` (sur SQLite, même
+  couche SQLAlchemy → parcours API complet sur backend SQL). `app/repositories/sql.py`.
+- **Chart TradingView** : `GET /api/market/ohlcv` (Binance + repli synthétique horodaté) +
+  composant `frontend/components/Chart.tsx` (lightweight-charts) intégré au dashboard avec lignes
+  de prix entrée/SL/TP du signal sélectionné (clic sur une carte).
+
 ## Pour activer le mode production
 1. Renseigner les clés dans `.env` (Anthropic/Gemini, Binance, Finnhub, Stripe, Telegram/Resend).
-2. Passer `USE_IN_MEMORY_DB=false` et lancer les migrations sur Postgres (`infra/db/init.sql`).
+2. Passer `USE_IN_MEMORY_DB=false` (+ driver `psycopg2`) et appliquer `infra/db/init.sql` sur Postgres.
+   Les tables sont aussi créées automatiquement au démarrage (`create_all`).
 3. Le routing LiteLLM et les agents basculent automatiquement sur les LLM réels.
 
 ## Limites assumées du MVP (par périmètre)

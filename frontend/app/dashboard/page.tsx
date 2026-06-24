@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
+import { Chart } from '@/components/Chart';
 import { SignalCard } from '@/components/SignalCard';
 import { api, clearToken, openSignalStream, type Me, type Signal } from '@/lib/api';
 
@@ -16,6 +17,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [live, setLive] = useState(false);
+  const [selected, setSelected] = useState<Signal | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -50,6 +52,7 @@ export default function DashboardPage() {
       const sig = await api.generate(asset, timeframe, false);
       // Le WS pousse aussi le signal ; on déduplique par sécurité.
       setSignals((prev) => (prev.some((p) => p.id === sig.id) ? prev : [sig, ...prev]));
+      setSelected(sig);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
     } finally {
@@ -113,12 +116,25 @@ export default function DashboardPage() {
         {error && <p className="text-sm text-sell">{error}</p>}
       </section>
 
+      <section className="mb-6">
+        <Chart asset={asset} timeframe={timeframe} signal={selected} />
+      </section>
+
       {signals.length === 0 ? (
         <p className="text-center text-muted">Aucun signal pour le moment. Générez votre premier signal.</p>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {signals.map((s, i) => (
-            <SignalCard key={s.id ?? i} s={s} />
+            <button
+              key={s.id ?? i}
+              onClick={() => {
+                setSelected(s);
+                setAsset(s.asset);
+              }}
+              className={`text-left transition ${selected?.id === s.id ? 'ring-2 ring-accent rounded-xl' : ''}`}
+            >
+              <SignalCard s={s} />
+            </button>
           ))}
         </div>
       )}

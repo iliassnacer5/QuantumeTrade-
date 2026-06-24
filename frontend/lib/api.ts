@@ -18,6 +18,15 @@ export type Signal = {
   rationale: string;
 };
 
+export type Candle = {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number;
+};
+
 export type Me = {
   id: string;
   email: string;
@@ -69,6 +78,8 @@ export const api = {
   onboard: (risk_profile: string, capital: number, watchlist: string[]) =>
     req<Me>('/api/onboarding', { method: 'POST', body: JSON.stringify({ risk_profile, capital, watchlist }) }),
   listSignals: () => req<Signal[]>('/api/signals'),
+  ohlcv: (asset: string, timeframe: string) =>
+    req<Candle[]>(`/api/market/ohlcv?asset=${encodeURIComponent(asset)}&timeframe=${timeframe}`),
   generate: (asset: string, timeframe: string, notify = false) =>
     req<Signal>('/api/signals/generate', { method: 'POST', body: JSON.stringify({ asset, timeframe, notify }) }),
   plans: () => req<{ id: string; price: number; features: string[] }[]>('/api/billing/plans'),

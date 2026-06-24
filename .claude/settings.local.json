@@ -7,7 +7,8 @@
       "Bash(git add *)",
       "Bash(git rm *)",
       "Bash(git -c user.email=ci@quantum.ai -c user.name=setup commit -q -m 'Phase 0: monorepo scaffold, backend FastAPI /health, frontend Next.js, infra, CI, docs & legal *)",
-      "Bash(git --no-pager log --oneline)"
+      "Bash(git --no-pager log --oneline)",
+      "Bash(npm run *)"
     ]
   }
 }

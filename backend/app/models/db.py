@@ -34,6 +34,8 @@ class UserORM(Base):
     mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     risk_profile: Mapped[str] = mapped_column(String, default="moderate")
     capital: Mapped[float] = mapped_column(Float, default=10000.0)
+    # Watchlist sérialisée en JSON (portable Postgres/SQLite).
+    watchlist: Mapped[str] = mapped_column(Text, default="[]")
     onboarded: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

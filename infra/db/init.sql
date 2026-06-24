@@ -24,6 +24,9 @@ CREATE TABLE users (
     full_name       TEXT,
     mfa_enabled     BOOLEAN NOT NULL DEFAULT false,
     risk_profile    TEXT DEFAULT 'moderate',     -- conservative | moderate | aggressive
+    capital         DOUBLE PRECISION NOT NULL DEFAULT 10000,
+    watchlist       TEXT NOT NULL DEFAULT '[]',  -- JSON array de symboles
+    onboarded       BOOLEAN NOT NULL DEFAULT false,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_users_tenant ON users(tenant_id);

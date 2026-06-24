@@ -1,0 +1,66 @@
+"""Récupération OHLCV avec horodatage, pour l'affichage graphique (TradingView).
+
+Renvoie une liste de dicts {time, open, high, low, close, volume} où `time` est un timestamp
+UNIX en secondes (format attendu par lightweight-charts). Binance en priorité, repli synthétique.
+"""
+
+from __future__ import annotations
+
+import logging
+import time as _time
+
+from app.data import binance
+from app.data.synthetic import generate_candles
+
+logger = logging.getLogger(__name__)
+
+INTERVAL_SECONDS = {"5m": 300, "15m": 900, "1h": 3600, "4h": 14400, "1d": 86400}
+
+
+async def _binance_ohlcv(symbol: str, interval: str, limit: int) -> list[dict]:
+    import httpx
+
+    params = {"symbol": binance.to_binance_symbol(symbol), "interval": interval, "limit": limit}
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.get(binance.REST_URL, params=params)
+        resp.raise_for_status()
+        rows = resp.json()
+    # [open_time(ms), open, high, low, close, volume, ...]
+    return [
+        {
+            "time": int(r[0] // 1000),
+            "open": float(r[1]),
+            "high": float(r[2]),
+            "low": float(r[3]),
+            "close": float(r[4]),
+            "volume": float(r[5]),
+        }
+        for r in rows
+    ]
+
+
+def _synthetic_ohlcv(interval: str, limit: int) -> list[dict]:
+    step = INTERVAL_SECONDS.get(interval, 3600)
+    candles = generate_candles(n=limit)
+    start = int(_time.time()) - len(candles) * step
+    return [
+        {
+            "time": start + i * step,
+            "open": round(c.open, 2),
+            "high": round(c.high, 2),
+            "low": round(c.low, 2),
+            "close": round(c.close, 2),
+            "volume": round(c.volume, 2),
+        }
+        for i, c in enumerate(candles)
+    ]
+
+
+async def get_ohlcv(symbol: str, interval: str = "1h", limit: int = 200) -> list[dict]:
+    try:
+        data = await _binance_ohlcv(symbol, interval, limit)
+        if len(data) >= 10:
+            return data
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("OHLCV Binance indisponible (%s), repli synthétique", exc)
+    return _synthetic_ohlcv(interval, limit)

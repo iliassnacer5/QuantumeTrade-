@@ -58,6 +58,19 @@ class Settings(BaseSettings):
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
+    @property
+    def database_url_sync(self) -> str:
+        """URL SQLAlchemy synchrone (les repositories du MVP sont synchrones).
+
+        Convertit l'éventuel driver async (asyncpg) en driver sync (psycopg2).
+        """
+        url = self.database_url
+        if url.startswith("postgresql+asyncpg://"):
+            return url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
+        if url.startswith("postgres://"):
+            return url.replace("postgres://", "postgresql+psycopg2://", 1)
+        return url
+
 
 @lru_cache
 def get_settings() -> Settings:
