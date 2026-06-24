@@ -83,13 +83,24 @@ def compute_status(user: User, store: AppStore) -> RiskStatus:
 
 
 def check_can_generate(user: User, store: AppStore) -> tuple[bool, str | None]:
-    """Autorise ou non une nouvelle génération selon les garde-fous. (ok, raison_si_bloque)."""
+    """Autorise ou non une nouvelle génération. (ok, raison_si_bloque).
+
+    Générer un signal = produire une ANALYSE, pas ouvrir une position : on ne bloque donc PAS sur
+    l'exposition (qui devient un simple avertissement sur la carte). On conserve uniquement une
+    limite de débit quotidienne anti-abus (coûts API/LLM).
+    """
     status = compute_status(user, store)
     if status.daily_signals >= user.max_daily_signals:
-        return False, f"Limite quotidienne de {user.max_daily_signals} signaux atteinte."
-    if status.exposure_pct >= user.max_exposure_pct:
-        return False, (
-            f"Exposition actuelle {status.exposure_pct:.0f}% >= plafond "
-            f"{user.max_exposure_pct:.0f}%. Réduisez votre exposition."
-        )
+        return False, f"Limite quotidienne de {user.max_daily_signals} analyses atteinte."
     return True, None
+
+
+def generation_warning(user: User, store: AppStore) -> str | None:
+    """Avertissement de risque (non bloquant) à afficher sur la carte signal."""
+    status = compute_status(user, store)
+    if status.exposure_pct >= user.max_exposure_pct:
+        return (
+            f"⚠️ Exposition simulée {status.exposure_pct:.0f}% ≥ plafond {user.max_exposure_pct:.0f}%. "
+            f"Prudence avant d'ouvrir une nouvelle position."
+        )
+    return None

@@ -55,6 +55,10 @@ export function SignalCard({ s }: { s: Signal }) {
         </div>
       </div>
 
+      {s.risk_warning && (
+        <p className="mt-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-200">{s.risk_warning}</p>
+      )}
+
       {Object.keys(m).length > 0 && (
         <div className="mt-4">
           <p className="mb-2 text-xs font-semibold text-white">Indicateurs techniques</p>

@@ -123,6 +123,11 @@ async def generate_for_user(
         journal_multipliers=journal_mult,
     )
 
+    # Avertissement de risque non bloquant (exposition simulée) sur la carte.
+    warn = risk_service.generation_warning(user, store)
+    if warn:
+        card.risk_warning = warn if not card.risk_warning else f"{card.risk_warning} {warn}"
+
     # Confirmation multi-timeframe (1h/4h/1j) + marqueur haute-conviction.
     from app.signal_engine import mtf
     card.mtf = await mtf.confirm(asset, card.direction)

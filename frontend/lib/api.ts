@@ -16,6 +16,7 @@ export type Signal = {
   confidence: number;
   timeframe: string;
   rationale: string;
+  risk_warning?: string | null;
   metrics?: Record<string, any>;
   consensus_pct?: number;
   mtf?: { aligned: number; total: number; details: Record<string, string> };
