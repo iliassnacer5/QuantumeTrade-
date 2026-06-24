@@ -103,6 +103,70 @@ def atr(candles: list[Candle], period: int = 14) -> float | None:
     return atr_val
 
 
+def stochastic(candles: list[Candle], period: int = 14, smooth: int = 3) -> tuple[float, float] | None:
+    """Oscillateur stochastique -> (%K, %D). 0-100. >80 surachat, <20 survente."""
+    if len(candles) < period + smooth:
+        return None
+    ks: list[float] = []
+    for i in range(period - 1, len(candles)):
+        window = candles[i - period + 1 : i + 1]
+        hh = max(c.high for c in window)
+        ll = min(c.low for c in window)
+        k = 100.0 if hh == ll else (candles[i].close - ll) / (hh - ll) * 100.0
+        ks.append(k)
+    if len(ks) < smooth:
+        return None
+    d = sum(ks[-smooth:]) / smooth
+    return ks[-1], d
+
+
+def adx(candles: list[Candle], period: int = 14) -> float | None:
+    """Average Directional Index — force de la tendance (0-100). >25 = tendance, <20 = range."""
+    if len(candles) < 2 * period:
+        return None
+    trs: list[float] = []
+    plus_dm: list[float] = []
+    minus_dm: list[float] = []
+    for i in range(1, len(candles)):
+        up = candles[i].high - candles[i - 1].high
+        down = candles[i - 1].low - candles[i].low
+        plus_dm.append(up if (up > down and up > 0) else 0.0)
+        minus_dm.append(down if (down > up and down > 0) else 0.0)
+        tr = max(
+            candles[i].high - candles[i].low,
+            abs(candles[i].high - candles[i - 1].close),
+            abs(candles[i].low - candles[i - 1].close),
+        )
+        trs.append(tr)
+
+    def _wilder(values: list[float]) -> list[float]:
+        out = [sum(values[:period])]
+        for i in range(period, len(values)):
+            out.append(out[-1] - out[-1] / period + values[i])
+        return out
+
+    atr_s = _wilder(trs)
+    pdm_s = _wilder(plus_dm)
+    mdm_s = _wilder(minus_dm)
+    dxs: list[float] = []
+    for atr_v, pdm_v, mdm_v in zip(atr_s, pdm_s, mdm_s):
+        if atr_v == 0:
+            continue
+        pdi = 100 * pdm_v / atr_v
+        mdi = 100 * mdm_v / atr_v
+        denom = pdi + mdi
+        dxs.append(100 * abs(pdi - mdi) / denom if denom else 0.0)
+    if len(dxs) < period:
+        return sum(dxs) / len(dxs) if dxs else None
+    return sum(dxs[-period:]) / period
+
+
+def support_resistance(candles: list[Candle], lookback: int = 50) -> tuple[float, float]:
+    """Support (plus bas) et résistance (plus haut) sur la fenêtre récente."""
+    window = candles[-lookback:] if len(candles) >= lookback else candles
+    return min(c.low for c in window), max(c.high for c in window)
+
+
 def obv(candles: list[Candle]) -> list[float]:
     """On-Balance Volume (OBV)."""
     if not candles:

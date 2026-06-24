@@ -31,6 +31,7 @@ class MasterDecision:
     rationale: str
     conflict: bool
     weights_used: dict
+    consensus: int = 0
 
 
 def _effective_weights(
@@ -59,44 +60,69 @@ def decide(
     regime_bias = next((o.score for o in outputs if o.name == "macro"), 0.0)
     eff = _effective_weights(base, journal_multipliers, regime_bias)
 
+    voting = [o for o in outputs if o.name != "risk"]
     num = den = 0.0
-    for o in outputs:
-        if o.name == "risk":  # l'agent risque ne vote pas la direction
-            continue
+    for o in voting:
         w = eff.get(o.name, 0.1) * max(o.confidence, 0.05)
         num += w * o.score
         den += w
     combined = num / den if den else 0.0
 
-    dirs = {o.name: o.direction() for o in outputs if o.name != "risk"}
+    dirs = {o.name: o.direction() for o in voting}
     conflict = any(d == Direction.BUY for d in dirs.values()) and any(
         d == Direction.SELL for d in dirs.values()
     )
 
-    if combined > 0.15:
+    if combined > 0.12:
         direction = Direction.BUY
-    elif combined < -0.15:
+    elif combined < -0.12:
         direction = Direction.SELL
     else:
         direction = Direction.HOLD
 
-    agreement = 1.0 - (0.4 if conflict else 0.0)
-    confidence = abs(combined) * 100 * agreement + 10
+    # --- Confiance recalibrée : force du signal × consensus pondéré des agents ---
+    sign = 1 if combined > 0 else -1 if combined < 0 else 0
+    agree_w = sum(
+        eff.get(o.name, 0.1) * max(o.confidence, 0.05)
+        for o in voting
+        if o.score != 0 and (o.score > 0) == (sign > 0)
+    )
+    agreement = (agree_w / den) if den and sign != 0 else 0.0
+    strength = min(1.0, abs(combined) / 0.4)  # combiné ±0.4 => force maximale
+    confidence = (0.55 * strength + 0.45 * agreement) * 100
+
+    # Bonus de tendance : un ADX élevé (tendance confirmée) renforce la conviction directionnelle.
+    adx = next((o.details.get("adx") for o in voting if o.name == "technical" and o.details.get("adx")), None)
+    if adx and direction != Direction.HOLD:
+        if adx > 25:
+            confidence += 8
+        elif adx < 18:
+            confidence -= 6  # marché en range : on tempère
+
+    if conflict:
+        confidence *= 0.85
     # Contrainte de l'Agent Risque : sa confidence < 1 réduit la confiance globale.
     if risk_output is not None:
-        confidence *= max(0.3, risk_output.confidence)
-    confidence = int(round(min(100, confidence)))
+        confidence *= max(0.4, risk_output.confidence)
+    confidence = int(round(max(0, min(100, confidence))))
     if direction == Direction.HOLD:
-        confidence = min(confidence, 40)
+        confidence = min(confidence, 45)
 
-    parts = [o.rationale for o in outputs]
-    arb = "Arbitrage Master : "
+    # --- Rationale experte : synthèse claire puis détail par agent ---
+    consensus_pct = int(round(agreement * 100))
+    arb = (
+        f"Arbitrage Master — Décision : {direction.value} | score {combined:+.2f} | "
+        f"consensus {consensus_pct}%"
+    )
+    if adx:
+        arb += f" | ADX {adx:.0f}"
+    arb += "."
     if conflict:
-        arb += "signaux divergents, pondération prudente. "
-    arb += f"Décision = {direction.value} (score {combined:+.2f})."
+        arb += " ⚠️ Signaux divergents : pondération prudente."
     if risk_output is not None and risk_output.details.get("penalty", 0) > 0:
-        arb += f" Contrainte risque appliquée (pénalité {risk_output.details['penalty']})."
-    rationale = arb + " " + " ".join(parts)
+        arb += f" Contrainte risque (pénalité {risk_output.details['penalty']})."
+    parts = [o.rationale for o in outputs]
+    rationale = arb + "\n• " + "\n• ".join(parts)
 
     return MasterDecision(
         direction=direction,
@@ -105,4 +131,5 @@ def decide(
         rationale=rationale,
         conflict=conflict,
         weights_used={k: round(v, 3) for k, v in eff.items()},
+        consensus=consensus_pct,
     )

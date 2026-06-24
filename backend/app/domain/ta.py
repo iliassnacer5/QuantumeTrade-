@@ -1,0 +1,179 @@
+"""Analyse technique experte consolidée — calcule TOUTES les métriques + un score directionnel.
+
+Sortie structurée (`metrics`) exposée dans la Signal Card pour un affichage type "tableau de bord
+trader" (RSI, MACD, ADX, Stochastique, EMA, Bollinger, ATR, OBV, VWAP, supports/résistances).
+
+Le score combine plusieurs indicateurs confirmants : plus ils s'alignent, plus le score est franc
+(|score| proche de 1), ce qui se traduit ensuite par une confiance élevée dans le Master.
+"""
+
+from __future__ import annotations
+
+from app.domain import indicators as ind
+from app.domain.indicators import Candle
+
+
+def _state_rsi(v: float) -> str:
+    return "survente" if v < 30 else "surachat" if v > 70 else "neutre"
+
+
+def fear_greed_proxy(candles: list[Candle]) -> int:
+    """Indice Fear & Greed (0-100) dérivé du marché quand aucune source de news n'est disponible.
+
+    Combine momentum (variation 14 périodes), RSI et position dans la fourchette récente — la même
+    logique que les indices F&G crypto. 50 = neutre, >50 = avidité (haussier), <50 = peur.
+    """
+    closes = [c.close for c in candles]
+    if len(closes) < 20:
+        return 50
+    momentum = (closes[-1] / closes[-14] - 1.0) if closes[-14] else 0.0  # ±
+    rsi_val = ind.rsi(closes, 14) or 50.0
+    support, resistance = ind.support_resistance(candles, 50)
+    span = resistance - support
+    range_pos = ((closes[-1] - support) / span) if span else 0.5  # 0..1
+    raw = 50 + momentum * 400 + (rsi_val - 50) * 0.6 + (range_pos - 0.5) * 30
+    return int(max(0, min(100, round(raw))))
+
+
+def analyze(candles: list[Candle]) -> dict:
+    """Retourne {metrics, score[-1..1], confidence[0..1], notes[list], signals_count}."""
+    closes = [c.close for c in candles]
+    price = closes[-1]
+    metrics: dict = {"price": round(price, 8)}
+    signals: list[float] = []
+    notes: list[str] = []
+
+    # --- Tendance (EMA 20/50/200) ---
+    ema20 = ind.ema(closes, 20)[-1]
+    ema50 = ind.ema(closes, 50)[-1] if len(closes) >= 50 else ema20
+    ema200 = ind.ema(closes, 200)[-1] if len(closes) >= 200 else ema50
+    if ema20 > ema50 > ema200:
+        trend, ts = "haussière", 0.5
+    elif ema20 < ema50 < ema200:
+        trend, ts = "baissière", -0.5
+    elif ema20 > ema50:
+        trend, ts = "haussière (court terme)", 0.3
+    elif ema20 < ema50:
+        trend, ts = "baissière (court terme)", -0.3
+    else:
+        trend, ts = "neutre", 0.0
+    signals.append(ts)
+    notes.append(f"Tendance {trend} (EMA20 {ema20:.2f} / EMA50 {ema50:.2f})")
+    metrics |= {"ema20": round(ema20, 4), "ema50": round(ema50, 4), "ema200": round(ema200, 4), "trend": trend}
+
+    # --- RSI ---
+    rsi_val = ind.rsi(closes, 14)
+    if rsi_val is not None:
+        state = _state_rsi(rsi_val)
+        if state == "survente":
+            signals.append(0.5)
+        elif state == "surachat":
+            signals.append(-0.5)
+        else:
+            signals.append((50 - rsi_val) / 100)
+        notes.append(f"RSI {rsi_val:.0f} ({state})")
+        metrics["rsi"] = round(rsi_val, 1)
+        metrics["rsi_state"] = state
+
+    # --- MACD ---
+    macd_res = ind.macd(closes)
+    if macd_res is not None:
+        line, sig, hist = macd_res
+        signals.append(0.4 if hist > 0 else -0.4)
+        notes.append(f"MACD {'haussier' if hist > 0 else 'baissier'} (hist {hist:+.2f})")
+        metrics["macd"] = {"line": round(line, 4), "signal": round(sig, 4), "hist": round(hist, 4),
+                           "state": "haussier" if hist > 0 else "baissier"}
+
+    # --- ADX (force de tendance) ---
+    adx_val = ind.adx(candles, 14)
+    if adx_val is not None:
+        adx_state = "tendance forte" if adx_val > 25 else "tendance modérée" if adx_val > 20 else "range (pas de tendance)"
+        notes.append(f"ADX {adx_val:.0f} ({adx_state})")
+        metrics["adx"] = round(adx_val, 1)
+        metrics["adx_state"] = adx_state
+        # L'ADX n'a pas de direction propre : il amplifie le signal de tendance existant.
+        if adx_val > 25 and ts != 0:
+            signals.append(0.3 if ts > 0 else -0.3)
+
+    # --- Stochastique ---
+    stoch = ind.stochastic(candles)
+    if stoch is not None:
+        k, d = stoch
+        if k < 20:
+            signals.append(0.4)
+            st = "survente"
+        elif k > 80:
+            signals.append(-0.4)
+            st = "surachat"
+        else:
+            st = "neutre"
+        notes.append(f"Stochastique %K {k:.0f} ({st})")
+        metrics["stochastic"] = {"k": round(k, 1), "d": round(d, 1), "state": st}
+
+    # --- Bollinger ---
+    boll = ind.bollinger(closes, 20)
+    if boll is not None:
+        low, mid, high = boll
+        if price <= low:
+            signals.append(0.3)
+            pos = "bande basse (survente)"
+        elif price >= high:
+            signals.append(-0.3)
+            pos = "bande haute (surachat)"
+        else:
+            pos = "milieu de bande"
+        notes.append(f"Bollinger : {pos}")
+        metrics["bollinger"] = {"low": round(low, 4), "mid": round(mid, 4), "high": round(high, 4), "position": pos}
+
+    # --- Volume : OBV / VWAP ---
+    obv_line = ind.obv(candles)
+    if len(obv_line) >= 10:
+        obv_up = obv_line[-1] > obv_line[-10]
+        signals.append(0.25 if obv_up else -0.25)
+        notes.append(f"OBV en {'hausse (accumulation)' if obv_up else 'baisse (distribution)'}")
+        metrics["obv_trend"] = "hausse" if obv_up else "baisse"
+    vwap_val = ind.vwap(candles)
+    if vwap_val is not None:
+        signals.append(0.2 if price > vwap_val else -0.2)
+        notes.append(f"Prix {'au-dessus' if price > vwap_val else 'en-dessous'} du VWAP ({vwap_val:.2f})")
+        metrics["vwap"] = round(vwap_val, 4)
+        metrics["vs_vwap"] = "au-dessus" if price > vwap_val else "en-dessous"
+
+    # --- ATR / volatilité ---
+    atr_val = ind.atr(candles, 14)
+    if atr_val is not None:
+        metrics["atr"] = round(atr_val, 4)
+        metrics["atr_pct"] = round(atr_val / price * 100, 2) if price else 0.0
+
+    # --- Supports / résistances ---
+    support, resistance = ind.support_resistance(candles, 50)
+    metrics["support"] = round(support, 4)
+    metrics["resistance"] = round(resistance, 4)
+    span = resistance - support
+    if span > 0:
+        pos_pct = (price - support) / span * 100
+        metrics["range_position_pct"] = round(pos_pct, 1)
+        # Proche du support => biais achat ; proche résistance => biais vente.
+        if pos_pct < 20:
+            signals.append(0.2)
+            notes.append("Prix proche du support (rebond possible)")
+        elif pos_pct > 80:
+            signals.append(-0.2)
+            notes.append("Prix proche de la résistance (rejet possible)")
+
+    # --- Agrégation ---
+    n = max(len(signals), 1)
+    raw = sum(signals) / n
+    # Score plus franc quand les indicateurs s'alignent (moins de dilution par la moyenne).
+    aligned = sum(1 for s in signals if (s > 0) == (raw > 0) and s != 0)
+    agreement = aligned / n
+    score = max(-1.0, min(1.0, raw * (0.6 + 0.8 * agreement)))
+    confidence = min(1.0, 0.45 + 0.1 * len(signals))
+    return {
+        "metrics": metrics,
+        "score": round(score, 3),
+        "confidence": round(confidence, 3),
+        "notes": notes,
+        "signals_count": len(signals),
+        "agreement": round(agreement, 2),
+    }

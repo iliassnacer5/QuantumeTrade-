@@ -43,4 +43,7 @@ class SignalCard(BaseModel):
     risk_warning: str | None = Field(default=None, description="Avertissement de risque éventuel")
     # Détail par agent (transparence / explicabilité)
     agents: list[dict] = Field(default_factory=list, description="Sorties des agents [{name,score,confidence,rationale}]")
+    # Tableau de bord des indicateurs techniques (RSI, MACD, ADX, EMA, Bollinger, ATR, supports…)
+    metrics: dict = Field(default_factory=dict, description="Indicateurs techniques consolidés")
+    consensus_pct: int = Field(default=0, ge=0, le=100, description="Consensus pondéré des agents (%)")
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

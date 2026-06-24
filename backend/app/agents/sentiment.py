@@ -87,9 +87,15 @@ async def run(news: list[NewsItem], fear_greed: int | None = None) -> AgentOutpu
     confidence = min(1.0, 0.3 + 0.1 * len(news) + (0.2 if fear_greed is not None else 0))
 
     bias = "positif" if score > 0.1 else "négatif" if score < -0.1 else "neutre"
-    parts = [f"Sentiment des news {bias} (n={len(news)})"]
+    parts = []
+    if news:
+        parts.append(f"Sentiment des news {bias} (n={len(news)})")
     if fear_greed is not None:
-        parts.append(f"Fear & Greed {fear_greed}/100")
+        fg_label = "avidité" if fear_greed > 55 else "peur" if fear_greed < 45 else "neutre"
+        src = "Fear & Greed" if news else "Indice de marché (momentum)"
+        parts.append(f"{src} {fear_greed}/100 ({fg_label})")
+    if not parts:
+        parts.append("aucune source de sentiment")
     rationale = "Analyse de sentiment : " + " ; ".join(parts) + "."
 
     return AgentOutput(

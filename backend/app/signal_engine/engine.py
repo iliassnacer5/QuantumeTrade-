@@ -40,6 +40,11 @@ async def generate_signal(
 ) -> SignalCard:
     """Produit une Signal Card à partir des données de marché, sentiment, fondamentaux et macro."""
     news = news or []
+    # Sans Fear & Greed externe, on dérive un indice de marché (momentum/volatilité) pour que
+    # l'agent sentiment contribue au lieu de rester muet ("pas de news").
+    if fear_greed is None:
+        from app.domain import ta as _ta
+        fear_greed = _ta.fear_greed_proxy(candles)
 
     # 1. Agents
     outputs: list[AgentOutput] = [
@@ -71,6 +76,8 @@ async def generate_signal(
     entry = candles[-1].close
     atr_val = ind.atr(candles, 14) or (entry * 0.01)
     breakdown = _breakdown(outputs)
+    # Tableau de bord des indicateurs : exposé depuis l'agent technique (détails = métriques ta).
+    metrics = next((o.details for o in outputs if o.name == "technical"), {}) or {}
 
     if decision.direction == Direction.HOLD:
         return SignalCard(
@@ -84,6 +91,8 @@ async def generate_signal(
             timeframe=timeframe,
             rationale=decision.rationale,
             agents=breakdown,
+            metrics=metrics,
+            consensus_pct=decision.consensus,
         )
 
     levels = compute_levels(decision.direction, entry, atr_val, risk)
@@ -103,4 +112,6 @@ async def generate_signal(
         position_value=levels.position_value,
         risk_amount=levels.risk_amount,
         agents=breakdown,
+        metrics=metrics,
+        consensus_pct=decision.consensus,
     )

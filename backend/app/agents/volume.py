@@ -6,7 +6,7 @@ Déterministe par défaut.
 
 from __future__ import annotations
 
-from app.agents.base import AgentOutput
+from app.agents.base import AgentOutput, enrich
 from app.domain import indicators as ind
 from app.domain.indicators import Candle
 
@@ -62,17 +62,15 @@ async def run(candles: list[Candle]) -> AgentOutput:
     confidence = min(1.0, 0.4 + 0.15 * len(signals))
     rationale = "Analyse de volume : " + " ; ".join(notes) + "."
 
-    # Enrichissement LLM optionnel
+    # Enrichissement LLM optionnel (AJOUTÉ, jamais substitué)
     from app.agents import llm
     if llm.available() and notes:
         try:
             prompt = (
-                f"Voici les signaux de volume détectés pour un actif (prix = {price}) : {', '.join(notes)}. "
-                "Génère une explication très concise (2 phrases) de la dynamique des volumes."
+                f"Analyste volumes. Rédige UNE phrase complète de synthèse (français) sur la dynamique "
+                f"des volumes, sans conseil : {', '.join(notes)}."
             )
-            llm_rationale = await llm.complete(prompt, role="fast", max_tokens=100)
-            if llm_rationale:
-                rationale = llm_rationale.strip()
+            rationale = enrich(rationale, await llm.complete(prompt, role="fast", max_tokens=200))
         except Exception as e:
             import logging
             logging.getLogger(__name__).warning("Erreur LLM volume : %s", e)

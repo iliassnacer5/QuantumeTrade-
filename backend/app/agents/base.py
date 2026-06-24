@@ -28,3 +28,18 @@ class AgentOutput:
         if self.score < -0.15:
             return Direction.SELL
         return Direction.HOLD
+
+
+def enrich(deterministic: str, llm_text: str | None) -> str:
+    """Ajoute un commentaire IA à l'analyse déterministe, SANS jamais la remplacer.
+
+    Garde-fou anti-troncature : on n'ajoute le texte LLM que s'il est complet (se termine par une
+    ponctuation de fin de phrase). Un fragment tronqué (modèle « thinking » à court de tokens) est
+    ignoré → l'utilisateur voit toujours une analyse cohérente et complète.
+    """
+    if not llm_text:
+        return deterministic
+    text = llm_text.strip()
+    if len(text) < 15 or text[-1] not in ".!?…":
+        return deterministic
+    return f"{deterministic} 💬 {text}"

@@ -16,6 +16,9 @@ export type Signal = {
   confidence: number;
   timeframe: string;
   rationale: string;
+  metrics?: Record<string, any>;
+  consensus_pct?: number;
+  agents?: { name: string; score: number; confidence: number; rationale: string }[];
 };
 
 export type Candle = {

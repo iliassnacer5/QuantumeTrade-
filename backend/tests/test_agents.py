@@ -17,7 +17,8 @@ async def test_technical_detects_uptrend():
     candles = generate_candles(n=200, trend=0.003, seed=1)
     out = await technical.run(candles)
     assert out.name == "technical"
-    assert out.details["ema_fast"] > out.details["ema_slow"]
+    assert out.details["ema20"] > out.details["ema50"]
+    assert "rsi" in out.details and "adx" in out.details  # métriques expertes exposées
     assert out.confidence > 0.5
 
 

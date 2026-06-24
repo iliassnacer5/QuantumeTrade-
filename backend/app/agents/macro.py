@@ -57,16 +57,16 @@ async def run(macro: dict | None = None) -> AgentOutput:
                 "et de son impact sur les marchés financiers. Précise le régime actuel (Risk-on ou Risk-off)."
             )
             # Utilise le rôle "grounding" qui est par défaut Gemini (qui a accès potentiellement au web via ses outils natifs)
-            llm_rationale = await llm.complete(prompt, role="grounding", max_tokens=150)
+            llm_rationale = await llm.complete(prompt, role="grounding", max_tokens=250)
             
-            import re
+            from app.agents.base import enrich
             # Optionnellement ajuster le score si le LLM est très explicite
             if "risk-on" in llm_rationale.lower() or "bullish" in llm_rationale.lower():
                 score = min(1.0, score + 0.2)
             elif "risk-off" in llm_rationale.lower() or "bearish" in llm_rationale.lower():
                 score = max(-1.0, score - 0.2)
-                
-            rationale = llm_rationale.strip()
+
+            rationale = enrich(rationale, llm_rationale.strip())
             confidence = 0.7
         except Exception as e:
             import logging

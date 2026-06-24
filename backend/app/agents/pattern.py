@@ -84,20 +84,21 @@ async def run(candles: list[Candle], symbol: str = "Symbol", timeframe: str = "T
             
             # Extraction du biais si présent
             import re
+            from app.agents.base import enrich
             m = re.search(r"\[Biais:\s*(-?\d+\.\d+)\]", resp)
             if m:
                 llm_score = float(m.group(1))
                 llm_score = max(-1.0, min(1.0, llm_score))
-                
                 # Pondération 50/50 entre déterministe et LLM si des figures déterministes existent
                 score = (base_score + llm_score) / 2 if patterns else llm_score
                 confidence = min(1.0, base_confidence + 0.2)
-                rationale = resp.strip()
+                # Le commentaire vision s'AJOUTE (sans la balise [Biais]), jamais ne remplace.
+                rationale = enrich(rationale, re.sub(r"\[Biais:[^\]]*\]", "", resp).strip())
             else:
                 score = base_score
                 confidence = base_confidence
-                rationale += f" | IA Vision: {resp.strip()}"
-                
+                rationale = enrich(rationale, resp.strip())
+
             return AgentOutput(
                 name=name,
                 score=round(score, 3),
