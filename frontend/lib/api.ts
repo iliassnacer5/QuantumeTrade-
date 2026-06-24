@@ -109,6 +109,38 @@ export type BacktestReport = {
   created_at: string;
 };
 
+export type PlanInfo = {
+  plan: string;
+  features: Record<string, boolean>;
+  feature_requirements: Record<string, string>;
+};
+
+export type JournalEntry = {
+  id: string;
+  signal_id?: string | null;
+  symbol: string;
+  direction: string;
+  outcome: string; // open | win | loss | breakeven
+  pnl?: number | null;
+  agent_scores?: Record<string, number>;
+  created_at?: string | null;
+};
+
+export type JournalInsights = {
+  stats: {
+    total_entries: number;
+    closed: number;
+    open: number;
+    wins: number;
+    losses: number;
+    win_rate: number;
+    total_pnl: number;
+  };
+  weight_multipliers: Record<string, number>;
+};
+
+export type TeamMember = { id: string; email: string; full_name?: string | null; role: string; onboarded: boolean };
+
 export type AgentInfo = { name: string; role: string; desc: string; model: string };
 
 export type AgentStatus = {
@@ -179,7 +211,60 @@ export const api = {
   runBacktest: (config: BacktestConfig) => req<BacktestReport>('/api/backtest/run', { method: 'POST', body: JSON.stringify(config) }),
   listBacktests: () => req<BacktestReport[]>('/api/backtest/reports'),
   agentsStatus: () => req<AgentStatus>('/api/agents/status'),
+  // Phase 3
+  myPlan: () => req<PlanInfo>('/api/plan'),
+  upgrade: (plan: string) => req<{ mode: string; checkout_url?: string }>(`/api/billing/checkout/${plan}`, { method: 'POST' }),
+  copilotAsk: (asset: string, message: string) =>
+    req<{ asset: string; answer: string }>('/api/copilot/ask', { method: 'POST', body: JSON.stringify({ asset, message }) }),
+  journalList: () => req<JournalEntry[]>('/api/journal'),
+  journalInsights: () => req<JournalInsights>('/api/journal/insights'),
+  journalClose: (id: string, outcome: string, pnl: number | null) =>
+    req<JournalEntry>(`/api/journal/${id}/close`, { method: 'POST', body: JSON.stringify({ outcome, pnl }) }),
+  journalExplain: (id: string) =>
+    req<{ id: string; explanation: string }>(`/api/journal/${id}/explain`, { method: 'POST' }),
+  team: () => req<{ plan: string; members: TeamMember[] }>('/api/team'),
+  teamInvite: (email: string, full_name?: string) =>
+    req<{ member: TeamMember; temp_password: string }>('/api/team/invite', { method: 'POST', body: JSON.stringify({ email, full_name }) }),
 };
+
+/** Copilot en streaming SSE. Appelle onDelta pour chaque fragment, onDone à la fin. */
+export async function copilotStream(
+  asset: string,
+  message: string,
+  onDelta: (s: string) => void,
+  onDone?: () => void,
+): Promise<void> {
+  const t = token();
+  const res = await fetch(`${API}/api/copilot/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) },
+    body: JSON.stringify({ asset, message }),
+  });
+  if (!res.ok || !res.body) {
+    throw new Error(res.status === 402 ? 'Copilot réservé au plan Pro' : `Erreur ${res.status}`);
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n\n');
+    buffer = lines.pop() ?? '';
+    for (const block of lines) {
+      const line = block.trim();
+      if (!line.startsWith('data:')) continue;
+      const payload = line.slice(5).trim();
+      if (payload === '[DONE]') { onDone?.(); return; }
+      try {
+        const obj = JSON.parse(payload);
+        if (obj.delta) onDelta(obj.delta);
+      } catch { /* ignore */ }
+    }
+  }
+  onDone?.();
+}
 
 export function openSignalStream(onSignal: (s: Signal) => void): WebSocket | null {
   const t = token();

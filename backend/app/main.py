@@ -21,6 +21,10 @@ from app.api import (
     ws,
     backtest,
     agents,
+    plan,
+    copilot,
+    journal,
+    team,
 )
 from app.core.config import get_settings
 from app.core.ratelimit import RateLimitMiddleware
@@ -76,6 +80,10 @@ app.include_router(audit.router)
 app.include_router(ws.router)
 app.include_router(backtest.router)
 app.include_router(agents.router)
+app.include_router(plan.router)
+app.include_router(copilot.router)
+app.include_router(journal.router)
+app.include_router(team.router)
 
 
 @app.get("/")

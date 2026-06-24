@@ -100,6 +100,50 @@ async def complete(prompt: str, *, role: str = "reasoning", max_tokens: int = 51
     raise LLMUnavailable(f"Échec de tous les fournisseurs pour '{role}': {last_exc}")
 
 
+async def stream(prompt: str, *, role: str = "reasoning", max_tokens: int = 1024, system: str | None = None):
+    """Génère la réponse en streaming (tokens). Yield des fragments de texte.
+
+    Utilisé par l'AI Copilot (Phase 3). Lève `LLMUnavailable` si aucun fournisseur ; l'appelant
+    bascule alors sur une réponse déterministe.
+    """
+    if not get_settings().llm_enabled:
+        raise LLMUnavailable("LLM désactivé")
+    chain = _models_for_role(role)
+    if not chain:
+        raise LLMUnavailable(f"Aucun modèle disponible pour le rôle '{role}'")
+    messages: list[dict] = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
+
+    last_exc: Exception | None = None
+    for model in chain:
+        try:
+            import litellm
+
+            resp = await litellm.acompletion(
+                model=model,
+                messages=messages,
+                api_key=_api_key_for(_provider_of(model)),
+                max_tokens=max_tokens,
+                stream=True,
+            )
+            produced = False
+            async for chunk in resp:
+                delta = (chunk.get("choices") or [{}])[0].get("delta") or {}
+                piece = delta.get("content")
+                if piece:
+                    produced = True
+                    yield piece
+            if produced:
+                return
+            raise RuntimeError("flux LLM vide")
+        except Exception as exc:  # noqa: BLE001 — failover
+            logger.warning("LLM stream %s indisponible (%s), tentative suivante", model, exc)
+            last_exc = exc
+    raise LLMUnavailable(f"Échec stream pour '{role}': {last_exc}")
+
+
 async def complete_vision(prompt: str, image_b64: str, *, role: str = "vision", max_tokens: int = 512) -> str:
     """Complétion multimodale (image) pour l'Agent Pattern."""
     if not get_settings().llm_enabled:

@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Quantum Trade AI",
+    "slug": "quantum-trade-ai",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "scheme": "quantumtrade",
+    "splash": {
+      "backgroundColor": "#0B0E11"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "ai.quantumtrade.app"
+    },
+    "android": {
+      "package": "ai.quantumtrade.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0B0E11"
+      }
+    },
+    "plugins": ["expo-notifications"],
+    "extra": {
+      "apiUrl": "http://localhost:8080"
+    }
+  }
+}

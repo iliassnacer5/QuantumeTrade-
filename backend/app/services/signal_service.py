@@ -89,6 +89,7 @@ async def generate_for_user(
             telegram_chat_id=user.telegram_chat_id if user.alert_telegram else None,
             webhook_url=user.webhook_url if user.alert_webhook else None,
             sms_to=user.phone if user.alert_sms else None,
+            push_token=user.push_token,
         )
 
     return card

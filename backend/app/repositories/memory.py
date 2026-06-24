@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 
 from app.models.entities import StoredSignal, Tenant, User
 from app.backtest.schemas import BacktestReport
+
+
+def _now_iso() -> str:
+    return datetime.now(UTC).isoformat()
 
 
 class UserRepository:
@@ -38,6 +43,9 @@ class UserRepository:
     def update(self, user: User) -> User:
         self._users[user.id] = user
         return user
+
+    def list_by_tenant(self, tenant_id: str) -> list[User]:
+        return [u for u in self._users.values() if u.tenant_id == tenant_id]
 
 
 class TenantRepository:
@@ -93,8 +101,21 @@ class JournalRepository:
     def __init__(self) -> None:
         self._entries: dict[str, list[dict]] = {}
 
-    def add(self, tenant_id: str, entry: dict) -> None:
+    def add(self, tenant_id: str, entry: dict) -> dict:
+        entry.setdefault("id", str(uuid.uuid4()))
+        entry.setdefault("created_at", _now_iso())
         self._entries.setdefault(tenant_id, []).append(entry)
+        return entry
 
     def list_for_tenant(self, tenant_id: str, limit: int = 200) -> list[dict]:
         return list(reversed(self._entries.get(tenant_id, [])))[:limit]
+
+    def get(self, tenant_id: str, entry_id: str) -> dict | None:
+        return next((e for e in self._entries.get(tenant_id, []) if e.get("id") == entry_id), None)
+
+    def update_outcome(self, tenant_id: str, entry_id: str, *, outcome: str, pnl: float | None) -> dict | None:
+        entry = self.get(tenant_id, entry_id)
+        if entry is not None:
+            entry["outcome"] = outcome
+            entry["pnl"] = pnl
+        return entry

@@ -104,11 +104,20 @@ export default function DashboardPage() {
           )}
         </div>
         <div className="flex gap-2">
+          <a href="/copilot" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
+            Copilot
+          </a>
+          <a href="/journal" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
+            Journal
+          </a>
           <a href="/backtest" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
             Backtest
           </a>
           <a href="/agents" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
             Agents
+          </a>
+          <a href="/plans" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
+            Plans
           </a>
           <a href="/settings" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
             Paramètres

@@ -73,6 +73,7 @@ class SettingsRequest(BaseModel):
     webhook_url: str | None = None
     alert_sms: bool | None = None
     phone: str | None = None
+    push_token: str | None = None
 
 
 class SettingsResponse(BaseModel):
@@ -87,4 +88,5 @@ class SettingsResponse(BaseModel):
     webhook_url: str | None
     alert_sms: bool
     phone: str | None
+    push_enabled: bool
     mfa_enabled: bool

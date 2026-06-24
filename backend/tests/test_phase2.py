@@ -164,6 +164,7 @@ def test_backtest_endpoint(monkeypatch):
     client = TestClient(app)
     r = client.post("/api/auth/register", json={"email": "bt@test.com", "password": "password123"})
     h = {"Authorization": f"Bearer {r.json()['access_token']}"}
+    client.post("/api/billing/checkout/pro", headers=h)  # backtest = feature Pro (Phase 3 gating)
     now = datetime.now(UTC)
     cfg = {
         "symbol": "BTC/USDT", "timeframe": "1h",

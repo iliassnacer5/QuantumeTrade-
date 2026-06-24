@@ -46,6 +46,8 @@ class User:
     webhook_url: str | None = None
     alert_sms: bool = False
     phone: str | None = None
+    # Push natif mobile (Phase 3)
+    push_token: str | None = None
     # MFA TOTP (Lot 5)
     mfa_secret: str | None = None
     created_at: datetime = field(default_factory=_now)

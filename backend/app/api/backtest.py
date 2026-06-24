@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.backtest.engine import run_backtest
 from app.backtest.schemas import BacktestConfig, BacktestReport
 from app.core.deps import current_user, store_dep
+from app.core.plans import require_feature
 from app.data.ohlcv import get_ohlcv
 from app.data.synthetic import generate_candles
 from app.domain.indicators import Candle
@@ -49,7 +50,7 @@ async def _load_history(symbol: str, timeframe: str, limit: int = 500) -> list[C
 @router.post("/run", response_model=BacktestReport)
 async def run(
     config: BacktestConfig,
-    user: User = Depends(current_user),
+    user: User = Depends(require_feature("backtesting")),
     store: AppStore = Depends(store_dep),
 ) -> BacktestReport:
     candles = await _load_history(config.symbol, config.timeframe)

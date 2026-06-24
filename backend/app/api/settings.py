@@ -25,6 +25,7 @@ def _to_response(u: User) -> SettingsResponse:
         webhook_url=u.webhook_url,
         alert_sms=u.alert_sms,
         phone=u.phone,
+        push_enabled=bool(u.push_token),
         mfa_enabled=u.mfa_enabled,
     )
 
@@ -62,5 +63,7 @@ async def update_settings(
         user.alert_sms = body.alert_sms
     if body.phone is not None:
         user.phone = body.phone or None
+    if body.push_token is not None:
+        user.push_token = body.push_token or None
     store.users.update(user)
     return _to_response(user)

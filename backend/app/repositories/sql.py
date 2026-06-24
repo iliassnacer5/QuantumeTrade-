@@ -53,6 +53,7 @@ def _user_to_entity(o: UserORM) -> User:
         webhook_url=o.webhook_url,
         alert_sms=o.alert_sms,
         phone=o.phone,
+        push_token=o.push_token,
         mfa_secret=o.mfa_secret,
     )
 
@@ -92,6 +93,11 @@ class SqlUserRepository:
             o = s.scalar(select(UserORM).where(UserORM.email == email.lower()))
             return _user_to_entity(o) if o else None
 
+    def list_by_tenant(self, tenant_id: str) -> list[User]:
+        with self._sm() as s:
+            rows = s.scalars(select(UserORM).where(UserORM.tenant_id == tenant_id)).all()
+            return [_user_to_entity(o) for o in rows]
+
     def update(self, user: User) -> User:
         with self._sm() as s:
             o = s.get(UserORM, user.id)
@@ -113,6 +119,7 @@ class SqlUserRepository:
             o.webhook_url = user.webhook_url
             o.alert_sms = user.alert_sms
             o.phone = user.phone
+            o.push_token = user.push_token
             o.mfa_secret = user.mfa_secret
             s.commit()
             return _user_to_entity(o)
@@ -306,16 +313,32 @@ class SqlJournalRepository:
     def __init__(self, sm) -> None:  # noqa: ANN001
         self._sm = sm
 
-    def add(self, tenant_id: str, entry: dict) -> None:
+    @staticmethod
+    def _to_dict(r) -> dict:  # noqa: ANN001
+        import json as _json
+
+        return {
+            "id": r.id,
+            "signal_id": r.signal_id,
+            "outcome": r.outcome,
+            "direction": r.direction,
+            "symbol": r.symbol,
+            "pnl": r.pnl,
+            "agent_scores": _json.loads(r.agent_scores or "{}"),
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+
+    def add(self, tenant_id: str, entry: dict) -> dict:
         import json as _json
         import uuid as _uuid
 
         from app.models.db import JournalEntryORM
 
+        entry_id = entry.get("id") or str(_uuid.uuid4())
         with self._sm() as s:
             s.add(
                 JournalEntryORM(
-                    id=str(_uuid.uuid4()),
+                    id=entry_id,
                     tenant_id=tenant_id,
                     signal_id=entry.get("signal_id"),
                     symbol=entry.get("symbol", ""),
@@ -326,10 +349,10 @@ class SqlJournalRepository:
                 )
             )
             s.commit()
+        entry["id"] = entry_id
+        return entry
 
     def list_for_tenant(self, tenant_id: str, limit: int = 200) -> list[dict]:
-        import json as _json
-
         from sqlalchemy import select as _select
 
         from app.models.db import JournalEntryORM
@@ -341,13 +364,35 @@ class SqlJournalRepository:
                 .order_by(JournalEntryORM.created_at.desc())
                 .limit(limit)
             ).all()
-            return [
-                {
-                    "outcome": r.outcome,
-                    "direction": r.direction,
-                    "symbol": r.symbol,
-                    "pnl": r.pnl,
-                    "agent_scores": _json.loads(r.agent_scores or "{}"),
-                }
-                for r in rows
-            ]
+            return [self._to_dict(r) for r in rows]
+
+    def get(self, tenant_id: str, entry_id: str) -> dict | None:
+        from sqlalchemy import select as _select
+
+        from app.models.db import JournalEntryORM
+
+        with self._sm() as s:
+            r = s.scalars(
+                _select(JournalEntryORM).where(
+                    JournalEntryORM.tenant_id == tenant_id, JournalEntryORM.id == entry_id
+                )
+            ).first()
+            return self._to_dict(r) if r else None
+
+    def update_outcome(self, tenant_id: str, entry_id: str, *, outcome: str, pnl: float | None) -> dict | None:
+        from sqlalchemy import select as _select
+
+        from app.models.db import JournalEntryORM
+
+        with self._sm() as s:
+            r = s.scalars(
+                _select(JournalEntryORM).where(
+                    JournalEntryORM.tenant_id == tenant_id, JournalEntryORM.id == entry_id
+                )
+            ).first()
+            if r is None:
+                return None
+            r.outcome = outcome
+            r.pnl = pnl
+            s.commit()
+            return self._to_dict(r)
