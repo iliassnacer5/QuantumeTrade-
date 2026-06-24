@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
-from app.api import health
+from app.api import auth, billing, health, onboarding, signals, ws
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -26,8 +26,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Routes (étendues phase par phase : auth, signals, billing, ws...)
+# Routes
 app.include_router(health.router)
+app.include_router(auth.router)
+app.include_router(onboarding.router)
+app.include_router(signals.router)
+app.include_router(billing.router)
+app.include_router(ws.router)
 
 
 @app.get("/")

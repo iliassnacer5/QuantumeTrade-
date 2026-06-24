@@ -59,8 +59,8 @@ uvicorn app.main:app --reload
 
 # Frontend
 cd frontend
-pnpm install
-pnpm dev
+npm install
+npm run dev
 ```
 
 ## Qualité du code
@@ -70,7 +70,7 @@ pnpm dev
 cd backend && ruff check . && black --check . && pytest
 
 # JS/TS
-cd frontend && pnpm lint && pnpm build
+cd frontend && npm run lint && npm run build
 ```
 
 Les hooks `pre-commit` lancent ruff/black/eslint/prettier automatiquement (`pip install pre-commit && pre-commit install`).

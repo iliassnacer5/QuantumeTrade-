@@ -1,22 +1,13 @@
 /**
  * Signal Card — composant central de l'UI (cf. cahier des charges §5.3).
- * Version statique de démonstration pour la Phase 0 ; branchée sur l'API en Phase 1.
  */
-export type Signal = {
-  asset: string;
-  direction: 'BUY' | 'SELL' | 'HOLD';
-  entry: number;
-  stopLoss: number;
-  takeProfit: [number, number, number];
-  riskReward: number;
-  confidence: number;
-  timeframe: string;
-  rationale: string;
-};
+import type { Signal } from '@/lib/api';
 
 export function SignalCard({ s }: { s: Signal }) {
   const isBuy = s.direction === 'BUY';
-  const badge = isBuy ? 'bg-buy-soft text-buy' : 'bg-sell-soft text-sell';
+  const isSell = s.direction === 'SELL';
+  const badge = isBuy ? 'bg-buy-soft text-buy' : isSell ? 'bg-sell-soft text-sell' : 'bg-border text-muted';
+  const tps = [s.take_profit_1, s.take_profit_2, s.take_profit_3].filter((t) => t != null) as number[];
 
   return (
     <div className="w-full max-w-md rounded-xl border border-border bg-surface p-5 shadow-lg">
@@ -27,11 +18,11 @@ export function SignalCard({ s }: { s: Signal }) {
 
       <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
         <Field label="Entrée" value={s.entry} />
-        <Field label="Stop-Loss" value={s.stopLoss} className="text-sell" />
-        <Field label="TP 1" value={s.takeProfit[0]} className="text-buy" />
-        <Field label="TP 2" value={s.takeProfit[1]} className="text-buy" />
-        <Field label="TP 3" value={s.takeProfit[2]} className="text-buy" />
-        <Field label="R/R" value={`1 : ${s.riskReward}`} />
+        <Field label="Stop-Loss" value={s.stop_loss} className="text-sell" />
+        {tps[0] != null && <Field label="TP 1" value={tps[0]} className="text-buy" />}
+        {tps[1] != null && <Field label="TP 2" value={tps[1]} className="text-buy" />}
+        {tps[2] != null && <Field label="TP 3" value={tps[2]} className="text-buy" />}
+        <Field label="R/R" value={`1 : ${s.risk_reward}`} />
       </div>
 
       <div className="mt-4">

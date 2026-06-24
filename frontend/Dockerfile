@@ -1,11 +1,10 @@
 # ---- Build ----
 FROM node:20-alpine AS builder
 WORKDIR /app
-RUN corepack enable
-COPY package.json ./
-RUN pnpm install
+COPY package.json package-lock.json ./
+RUN npm ci
 COPY . .
-RUN pnpm build
+RUN npm run build
 
 # ---- Runtime (standalone) ----
 FROM node:20-alpine AS runner

@@ -26,10 +26,33 @@ class Settings(BaseSettings):
     redis_url: str = "redis://redis:6379/0"
     kafka_bootstrap_servers: str = "redpanda:9092"
 
+    # Persistance MVP : in-memory par défaut -> l'app tourne sans Postgres.
+    # Passer à false pour utiliser la base SQL (DATABASE_URL).
+    use_in_memory_db: bool = True
+
+    # JWT
+    jwt_algorithm: str = "HS256"
+
     # LLM
     anthropic_api_key: str = ""
     google_api_key: str = ""
     litellm_default_model: str = "claude-sonnet-4-6"
+
+    # Données marché / news
+    binance_api_key: str = ""
+    binance_api_secret: str = ""
+    finnhub_api_key: str = ""
+    newsapi_key: str = ""
+
+    # Facturation
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_price_starter: str = ""
+
+    # Alertes
+    telegram_bot_token: str = ""
+    resend_api_key: str = ""
+    email_from: str = "alerts@quantumtrade.ai"
 
     @property
     def cors_origins_list(self) -> list[str]:
