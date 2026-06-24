@@ -44,6 +44,17 @@ async def generate(
     )
 
 
+@router.get("/scan")
+async def scan(
+    asset_class: str | None = None,
+    limit: int = 12,
+    _user: User = Depends(current_user),
+) -> dict:
+    """Scanner haute-conviction : ne retourne que les setups ADX>25 + multi-timeframe aligné."""
+    results = await signal_service.scan_high_conviction(asset_class=asset_class, limit=min(limit, 30))
+    return {"count": len(results), "results": results}
+
+
 @router.get("")
 async def list_signals(
     limit: int = 50,

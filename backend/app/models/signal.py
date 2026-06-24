@@ -46,4 +46,7 @@ class SignalCard(BaseModel):
     # Tableau de bord des indicateurs techniques (RSI, MACD, ADX, EMA, Bollinger, ATR, supports…)
     metrics: dict = Field(default_factory=dict, description="Indicateurs techniques consolidés")
     consensus_pct: int = Field(default=0, ge=0, le=100, description="Consensus pondéré des agents (%)")
+    # Confirmation multi-timeframe (1h/4h/1j) et marqueur haute-conviction.
+    mtf: dict = Field(default_factory=dict, description="Alignement multi-timeframe {aligned,total,details}")
+    high_conviction: bool = Field(default=False, description="ADX>25 + consensus>=70% + MTF aligné")
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

@@ -7,6 +7,7 @@ import logging
 from fastapi import APIRouter, Depends, Query
 
 from app.core.deps import current_user, store_dep
+from app.data import symbols as symbols_catalog
 from app.data.heatmap import get_heatmap
 from app.data.ohlcv import get_ohlcv
 from app.models.entities import User
@@ -49,3 +50,16 @@ async def heatmap(
     """Variation 24h des actifs de la watchlist (heatmap marché)."""
     symbols = user.watchlist or ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
     return await get_heatmap(symbols)
+
+
+@router.get("/symbols")
+async def list_symbols(
+    q: str | None = Query(default=None, description="Filtre texte (ex. BTC, EUR, AAPL)"),
+    asset_class: str | None = Query(default=None, description="crypto | forex | stock"),
+    _user: User = Depends(current_user),
+) -> dict:
+    """Catalogue multi-marchés (crypto / forex / actions) + recherche."""
+    return {
+        "results": symbols_catalog.search(q, asset_class, limit=100),
+        "classes": list(symbols_catalog.catalog().keys()),
+    }

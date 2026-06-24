@@ -38,6 +38,50 @@ async def _load_candles(symbol: str, timeframe: Timeframe) -> list[Candle]:
     return await markets.load_candles(symbol, interval=_TF_INTERVAL.get(timeframe, "1h"), limit=200)
 
 
+async def scan_high_conviction(asset_class: str | None = None, limit: int = 12) -> list[dict]:
+    """Scanne le marché et ne retourne QUE les configurations à forte conviction.
+
+    Léger et déterministe (analyse technique + multi-timeframe, sans LLM) pour pouvoir balayer de
+    nombreux symboles. Critères : ADX > 25 (tendance forte) ET au moins 2 unités de temps alignées.
+    """
+    from app.data import symbols as symbols_catalog
+    from app.domain import ta
+    from app.signal_engine import mtf
+    from app.models.signal import Direction
+
+    universe = symbols_catalog.search(asset_class=asset_class, limit=limit)
+    results: list[dict] = []
+    for item in universe:
+        sym = item["symbol"]
+        try:
+            candles = await markets.load_candles(sym, interval="1h", limit=200)
+            if len(candles) < 60:
+                continue
+            a = ta.analyze(candles)
+            adx = a["metrics"].get("adx", 0) or 0
+            direction = Direction.BUY if a["score"] > 0.12 else Direction.SELL if a["score"] < -0.12 else Direction.HOLD
+            if direction == Direction.HOLD or adx <= 25:
+                continue
+            conf = await mtf.confirm(sym, direction)
+            if conf["aligned"] < 2:
+                continue
+            results.append({
+                "symbol": sym,
+                "asset_class": item["asset_class"],
+                "direction": direction.value,
+                "score": a["score"],
+                "adx": round(adx, 1),
+                "trend": a["metrics"].get("trend"),
+                "rsi": a["metrics"].get("rsi"),
+                "mtf": conf,
+                "price": a["metrics"].get("price"),
+            })
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Scan %s échoué (%s)", sym, exc)
+    results.sort(key=lambda r: (r["mtf"]["aligned"], r["adx"]), reverse=True)
+    return results
+
+
 async def generate_for_user(
     user: User,
     store: AppStore,
@@ -70,6 +114,17 @@ async def generate_for_user(
         macro_data=macro_ctx,
         risk_context=risk_context,
         journal_multipliers=journal_mult,
+    )
+
+    # Confirmation multi-timeframe (1h/4h/1j) + marqueur haute-conviction.
+    from app.signal_engine import mtf
+    card.mtf = await mtf.confirm(asset, card.direction)
+    adx = card.metrics.get("adx")
+    card.high_conviction = bool(
+        card.direction.value != "HOLD"
+        and adx and adx > 25
+        and card.consensus_pct >= 70
+        and card.mtf.get("aligned", 0) >= 2
     )
 
     # Persistance (isolée par tenant)

@@ -66,6 +66,8 @@ class Settings(BaseSettings):
     binance_api_secret: str = ""
     finnhub_api_key: str = ""
     newsapi_key: str = ""
+    newsdata_key: str = ""
+    massive_news_key: str = ""
     # Multi-marchés (Phase 2)
     alpaca_api_key: str = ""
     alpaca_api_secret: str = ""

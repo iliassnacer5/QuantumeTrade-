@@ -15,8 +15,26 @@ export function SignalCard({ s }: { s: Signal }) {
     <div className="w-full max-w-lg rounded-xl border border-border bg-surface p-5 shadow-lg">
       <div className="flex items-center justify-between">
         <span className="font-mono text-lg font-semibold">{s.asset}</span>
-        <span className={`rounded-md px-3 py-1 text-sm font-bold ${badge}`}>{s.direction}</span>
+        <div className="flex items-center gap-2">
+          {s.high_conviction && (
+            <span className="rounded-md bg-buy/20 px-2 py-1 text-[10px] font-bold text-buy" title="ADX>25 + consensus≥70% + multi-timeframe aligné">
+              ★ HAUTE CONVICTION
+            </span>
+          )}
+          <span className={`rounded-md px-3 py-1 text-sm font-bold ${badge}`}>{s.direction}</span>
+        </div>
       </div>
+      {s.mtf && s.mtf.total > 0 && (
+        <div className="mt-2 flex items-center gap-2 text-[11px] text-muted">
+          <span>Multi-timeframe :</span>
+          {Object.entries(s.mtf.details).map(([tf, dir]) => (
+            <span key={tf} className={`rounded px-1.5 py-0.5 ${dir === 'BUY' ? 'bg-buy/15 text-buy' : dir === 'SELL' ? 'bg-sell/15 text-sell' : 'bg-border text-muted'}`}>
+              {tf} {dir}
+            </span>
+          ))}
+          <span className="ml-1">({s.mtf.aligned}/{s.mtf.total} alignés)</span>
+        </div>
+      )}
 
       <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
         <Field label="Entrée" value={s.entry} />

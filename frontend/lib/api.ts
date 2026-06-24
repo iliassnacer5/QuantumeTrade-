@@ -18,6 +18,8 @@ export type Signal = {
   rationale: string;
   metrics?: Record<string, any>;
   consensus_pct?: number;
+  mtf?: { aligned: number; total: number; details: Record<string, string> };
+  high_conviction?: boolean;
   agents?: { name: string; score: number; confidence: number; rationale: string }[];
 };
 
@@ -206,6 +208,14 @@ export const api = {
   listSignals: () => req<Signal[]>('/api/signals'),
   ohlcv: (asset: string, timeframe: string) =>
     req<Candle[]>(`/api/market/ohlcv?asset=${encodeURIComponent(asset)}&timeframe=${timeframe}`),
+  symbols: (q?: string, asset_class?: string) => {
+    const p = new URLSearchParams();
+    if (q) p.set('q', q);
+    if (asset_class) p.set('asset_class', asset_class);
+    return req<{ results: { symbol: string; asset_class: string; label: string }[]; classes: string[] }>(`/api/market/symbols?${p}`);
+  },
+  scan: (asset_class?: string, limit = 12) =>
+    req<{ count: number; results: any[] }>(`/api/signals/scan?${new URLSearchParams({ ...(asset_class ? { asset_class } : {}), limit: String(limit) })}`),
   generate: (asset: string, timeframe: string, notify = false) =>
     req<Signal>('/api/signals/generate', { method: 'POST', body: JSON.stringify({ asset, timeframe, notify }) }),
   plans: () => req<{ id: string; price: number; features: string[] }[]>('/api/billing/plans'),

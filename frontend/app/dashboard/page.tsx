@@ -30,6 +30,11 @@ export default function DashboardPage() {
   const [pnl, setPnl] = useState<Portfolio | null>(null);
   const [risk, setRisk] = useState<RiskStatus | null>(null);
   const [heat, setHeat] = useState<HeatmapItem[]>([]);
+  const [symbols, setSymbols] = useState<string[]>([]);
+
+  useEffect(() => {
+    api.symbols().then((d) => setSymbols(d.results.map((r) => r.symbol))).catch(() => {});
+  }, []);
 
   const loadPanels = useCallback(async () => {
     try {
@@ -104,6 +109,9 @@ export default function DashboardPage() {
           )}
         </div>
         <div className="flex gap-2">
+          <a href="/scanner" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
+            Scanner
+          </a>
           <a href="/copilot" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
             Copilot
           </a>
@@ -179,12 +187,19 @@ export default function DashboardPage() {
 
       <section className="mb-6 flex flex-wrap items-end gap-3 rounded-xl border border-border bg-surface p-4">
         <div>
-          <label className="mb-1 block text-xs text-muted">Actif</label>
+          <label className="mb-1 block text-xs text-muted">Actif (crypto · forex · actions)</label>
           <input
+            list="symbol-catalog"
             value={asset}
             onChange={(e) => setAsset(e.target.value.toUpperCase())}
+            placeholder="BTC/USDT, EUR/USD, AAPL…"
             className="rounded-lg border border-border bg-background px-3 py-2 font-mono outline-none focus:border-accent"
           />
+          <datalist id="symbol-catalog">
+            {symbols.map((s) => (
+              <option key={s} value={s} />
+            ))}
+          </datalist>
         </div>
         <div>
           <label className="mb-1 block text-xs text-muted">Timeframe</label>
