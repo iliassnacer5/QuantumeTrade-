@@ -25,6 +25,10 @@ from app.api import (
     copilot,
     journal,
     team,
+    execution,
+    kyc,
+    copytrading,
+    marketplace,
 )
 from app.core.config import get_settings
 from app.core.ratelimit import RateLimitMiddleware
@@ -84,6 +88,10 @@ app.include_router(plan.router)
 app.include_router(copilot.router)
 app.include_router(journal.router)
 app.include_router(team.router)
+app.include_router(execution.router)
+app.include_router(kyc.router)
+app.include_router(copytrading.router)
+app.include_router(marketplace.router)
 
 
 @app.get("/")

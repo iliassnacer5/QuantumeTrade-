@@ -116,6 +116,15 @@ export default function DashboardPage() {
           <a href="/agents" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
             Agents
           </a>
+          <a href="/execution" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
+            Exécution
+          </a>
+          <a href="/copytrading" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
+            Copy
+          </a>
+          <a href="/marketplace" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
+            Marketplace
+          </a>
           <a href="/plans" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
             Plans
           </a>

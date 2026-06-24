@@ -27,6 +27,7 @@ FEATURE_MIN_PLAN: dict[str, str] = {
     "copilot": "pro",
     "journal": "pro",
     "team": "pro",
+    "marketplace_sell": "pro",
     "api_access": "elite",
     "copy_trading": "elite",
     "auto_execution": "elite",

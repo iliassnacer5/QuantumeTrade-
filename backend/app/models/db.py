@@ -152,6 +152,23 @@ class AgentRunLogRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class RecordRow(Base):
+    """Document générique (clé/valeur JSON) — Phase 4.
+
+    Porte les collections Phase 4 (connexions broker, ordres, suivis copy-trading, annonces
+    marketplace, achats, clés API dev) sans multiplier les tables. `kind` discrimine la collection ;
+    `payload` est un JSON applicatif. `tenant_id` nullable pour les enregistrements globaux
+    (ex. annonces marketplace visibles par tous).
+    """
+
+    __tablename__ = "records"
+    kind: Mapped[str] = mapped_column(String, primary_key=True)
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    tenant_id: Mapped[str | None] = mapped_column(String, index=True, nullable=True)
+    payload: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 
 class SignalORM(Base):
     __tablename__ = "signals"

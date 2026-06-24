@@ -141,6 +141,13 @@ export type JournalInsights = {
 
 export type TeamMember = { id: string; email: string; full_name?: string | null; role: string; onboarded: boolean };
 
+export type BrokerConn = { id: string; broker: string; mode: string; key_hint: string; created_at?: string };
+export type Order = { id: string; broker: string; mode: string; symbol: string; side: string; qty: number; status: string; filled_price: number | null; copied_from?: string };
+export type Trader = { tenant_id: string; display_name: string; win_rate: number; total_pnl: number; closed_trades: number };
+export type CopyFollow = { id: string; leader_tenant: string; allocation_pct: number; max_per_trade: number; min_confidence: number; active: boolean };
+export type Listing = { id: string; title: string; kind: string; price: number; description: string; seller_tenant: string; created_at?: string };
+export type ApiKey = { id: string; label: string; prefix: string; active: boolean; created_at?: string };
+
 export type AgentInfo = { name: string; role: string; desc: string; model: string };
 
 export type AgentStatus = {
@@ -225,6 +232,34 @@ export const api = {
   team: () => req<{ plan: string; members: TeamMember[] }>('/api/team'),
   teamInvite: (email: string, full_name?: string) =>
     req<{ member: TeamMember; temp_password: string }>('/api/team/invite', { method: 'POST', body: JSON.stringify({ email, full_name }) }),
+  // Phase 4 — Exécution broker + KYC
+  kycStatus: () => req<{ status: string }>('/api/kyc'),
+  kycSubmit: (legal_name: string, country: string, doc_id: string) =>
+    req<{ status: string }>('/api/kyc', { method: 'POST', body: JSON.stringify({ legal_name, country, doc_id }) }),
+  brokers: () => req<BrokerConn[]>('/api/execution/brokers'),
+  connectBroker: (broker: string, mode: string, api_key = '', api_secret = '') =>
+    req<BrokerConn>('/api/execution/brokers', { method: 'POST', body: JSON.stringify({ broker, mode, api_key, api_secret }) }),
+  revokeBroker: (id: string) => req<{ revoked: boolean }>(`/api/execution/brokers/${id}`, { method: 'DELETE' }),
+  placeOrder: (conn_id: string, symbol: string, side: string, qty: number) =>
+    req<Order>('/api/execution/orders', { method: 'POST', body: JSON.stringify({ conn_id, symbol, side, qty }) }),
+  orders: () => req<Order[]>('/api/execution/orders'),
+  // Phase 4 — Copy-trading
+  leaderboard: () => req<Trader[]>('/api/copytrading/leaderboard'),
+  publishProfile: (display_name: string) => req<unknown>('/api/copytrading/publish', { method: 'POST', body: JSON.stringify({ display_name }) }),
+  following: () => req<CopyFollow[]>('/api/copytrading/following'),
+  follow: (leader_tenant: string, allocation_pct: number, max_per_trade: number, min_confidence: number) =>
+    req<CopyFollow>('/api/copytrading/follow', { method: 'POST', body: JSON.stringify({ leader_tenant, allocation_pct, max_per_trade, min_confidence }) }),
+  unfollow: (id: string) => req<{ unfollowed: boolean }>(`/api/copytrading/follow/${id}`, { method: 'DELETE' }),
+  commissions: () => req<{ total: number; count: number; items: any[] }>('/api/copytrading/commissions'),
+  // Phase 4 — Marketplace
+  listings: () => req<Listing[]>('/api/marketplace/listings'),
+  createListing: (l: { title: string; kind: string; price: number; description: string; config: any }) =>
+    req<Listing>('/api/marketplace/listings', { method: 'POST', body: JSON.stringify(l) }),
+  buyListing: (id: string) => req<{ purchase_id: string; config: any }>(`/api/marketplace/listings/${id}/buy`, { method: 'POST' }),
+  purchases: () => req<any[]>('/api/marketplace/purchases'),
+  apiKeys: () => req<ApiKey[]>('/api/marketplace/api-keys'),
+  createApiKey: (label: string) => req<{ id: string; api_key: string; prefix: string }>('/api/marketplace/api-keys', { method: 'POST', body: JSON.stringify({ label }) }),
+  revokeApiKey: (id: string) => req<{ revoked: boolean }>(`/api/marketplace/api-keys/${id}`, { method: 'DELETE' }),
 };
 
 /** Copilot en streaming SSE. Appelle onDelta pour chaque fragment, onDone à la fin. */

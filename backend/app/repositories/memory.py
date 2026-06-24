@@ -119,3 +119,28 @@ class JournalRepository:
             entry["outcome"] = outcome
             entry["pnl"] = pnl
         return entry
+
+
+class RecordRepository:
+    """Document store générique en mémoire (Phase 4). Clé = (kind, id)."""
+
+    def __init__(self) -> None:
+        self._records: dict[tuple[str, str], dict] = {}
+
+    def put(self, kind: str, record_id: str, payload: dict, tenant_id: str | None = None) -> dict:
+        rec = {**payload, "id": record_id, "tenant_id": tenant_id}
+        rec.setdefault("created_at", _now_iso())
+        self._records[(kind, record_id)] = rec
+        return rec
+
+    def get(self, kind: str, record_id: str) -> dict | None:
+        return self._records.get((kind, record_id))
+
+    def list(self, kind: str, tenant_id: str | None = None) -> list[dict]:
+        items = [v for (k, _), v in self._records.items() if k == kind]
+        if tenant_id is not None:
+            items = [v for v in items if v.get("tenant_id") == tenant_id]
+        return sorted(items, key=lambda r: r.get("created_at", ""), reverse=True)
+
+    def delete(self, kind: str, record_id: str) -> bool:
+        return self._records.pop((kind, record_id), None) is not None

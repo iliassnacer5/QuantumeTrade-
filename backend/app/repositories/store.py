@@ -54,6 +54,13 @@ class _Journal(Protocol):
     def update_outcome(self, tenant_id: str, entry_id: str, *, outcome: str, pnl: float | None) -> dict | None: ...
 
 
+class _Records(Protocol):
+    def put(self, kind: str, record_id: str, payload: dict, tenant_id: str | None = None) -> dict: ...
+    def get(self, kind: str, record_id: str) -> dict | None: ...
+    def list(self, kind: str, tenant_id: str | None = None) -> list[dict]: ...
+    def delete(self, kind: str, record_id: str) -> bool: ...
+
+
 class AppStore:
     users: _Users
     tenants: _Tenants
@@ -61,6 +68,7 @@ class AppStore:
     market: _Market
     backtests: _Backtests
     journal: _Journal
+    records: _Records
 
     def __init__(self) -> None:
         settings = get_settings()
@@ -68,6 +76,7 @@ class AppStore:
             from app.repositories.memory import (
                 BacktestRepository,
                 JournalRepository,
+                RecordRepository,
                 SignalRepository,
                 TenantRepository,
                 UserRepository,
@@ -80,11 +89,13 @@ class AppStore:
             self.market = NoopMarketRepository()
             self.backtests = BacktestRepository()
             self.journal = JournalRepository()
+            self.records = RecordRepository()
         else:
             from app.repositories.sql import (
                 SqlBacktestRepository,
                 SqlJournalRepository,
                 SqlMarketRepository,
+                SqlRecordRepository,
                 SqlSignalRepository,
                 SqlTenantRepository,
                 SqlUserRepository,
@@ -98,6 +109,7 @@ class AppStore:
             self.market = SqlMarketRepository(sm)
             self.backtests = SqlBacktestRepository(sm)
             self.journal = SqlJournalRepository(sm)
+            self.records = SqlRecordRepository(sm)
 
 
 _store: AppStore | None = None

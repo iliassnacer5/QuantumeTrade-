@@ -80,6 +80,13 @@ async def generate_for_user(
     # Boucle d'apprentissage : enregistre l'issue (open) + scores d'agents pour le Journal.
     journal_service.record_signal(store, user.tenant_id, card, stored.id)
 
+    # Copy-trading (Phase 4) : si l'utilisateur est un trader public, réplique vers ses suiveurs.
+    try:
+        from app.services import copytrading_service
+        await copytrading_service.on_leader_signal(store, user.tenant_id, card)
+    except Exception as exc:  # noqa: BLE001 — la copie ne doit jamais casser la génération
+        logger.warning("Copy-trading fan-out échoué (%s)", exc)
+
     # Diffusion temps réel (Redis pub/sub si actif, sinon hub mémoire) + alerte
     await bus.publish(user.tenant_id, {"type": "signal", "data": payload})
     if notify:

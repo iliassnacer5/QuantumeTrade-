@@ -396,3 +396,62 @@ class SqlJournalRepository:
             r.pnl = pnl
             s.commit()
             return self._to_dict(r)
+
+
+class SqlRecordRepository:
+    """Document store générique persistant (Phase 4). Clé = (kind, id)."""
+
+    def __init__(self, sm) -> None:  # noqa: ANN001
+        self._sm = sm
+
+    @staticmethod
+    def _to_dict(r) -> dict:  # noqa: ANN001
+        data = json.loads(r.payload or "{}")
+        data["id"] = r.id
+        data["tenant_id"] = r.tenant_id
+        if r.created_at:
+            data.setdefault("created_at", r.created_at.isoformat())
+        return data
+
+    def put(self, kind: str, record_id: str, payload: dict, tenant_id: str | None = None) -> dict:
+        from app.models.db import RecordRow
+
+        clean = {k: v for k, v in payload.items() if k not in {"id", "tenant_id"}}
+        with self._sm() as s:
+            row = s.get(RecordRow, {"kind": kind, "id": record_id})
+            if row is None:
+                row = RecordRow(kind=kind, id=record_id, tenant_id=tenant_id, payload=json.dumps(clean))
+                s.add(row)
+            else:
+                row.tenant_id = tenant_id
+                row.payload = json.dumps(clean)
+            s.commit()
+            return self._to_dict(row)
+
+    def get(self, kind: str, record_id: str) -> dict | None:
+        from app.models.db import RecordRow
+
+        with self._sm() as s:
+            row = s.get(RecordRow, {"kind": kind, "id": record_id})
+            return self._to_dict(row) if row else None
+
+    def list(self, kind: str, tenant_id: str | None = None) -> list[dict]:
+        from app.models.db import RecordRow
+
+        with self._sm() as s:
+            stmt = select(RecordRow).where(RecordRow.kind == kind)
+            if tenant_id is not None:
+                stmt = stmt.where(RecordRow.tenant_id == tenant_id)
+            rows = s.scalars(stmt.order_by(RecordRow.created_at.desc())).all()
+            return [self._to_dict(r) for r in rows]
+
+    def delete(self, kind: str, record_id: str) -> bool:
+        from app.models.db import RecordRow
+
+        with self._sm() as s:
+            row = s.get(RecordRow, {"kind": kind, "id": record_id})
+            if row is None:
+                return False
+            s.delete(row)
+            s.commit()
+            return True
