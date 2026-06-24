@@ -37,16 +37,25 @@ Prérequis : **Docker Desktop**, **Node 20+ / pnpm 9+**, **Python 3.11+**.
 
 ```bash
 # 1. Copier les variables d'environnement
-cp .env.example .env          # puis renseigner les clés API
+cp .env.example .env          # puis renseigner les clés API (optionnel en dev)
 
-# 2. Lancer toute la stack (db + redis + kafka + backend + frontend)
+# 2. Lancer toute la stack (postgres + redis + redpanda + backend + frontend)
 docker compose -f infra/docker-compose.yml up --build
 
 # 3. Vérifier
-# Backend  : http://localhost:8000/health  -> {"status":"ok"}
-# API docs : http://localhost:8000/docs
+# Backend  : http://localhost:8080/health  -> {"status":"ok"}
+# API docs : http://localhost:8080/docs
 # Frontend : http://localhost:3000
 ```
+
+> **Ports** : le backend est exposé sur **8080** (et non 8000) et Postgres/Redis/Redpanda
+> ne sont **pas** exposés sur l'hôte — ils communiquent en interne via le réseau Docker.
+> Cela évite tout conflit si vous avez déjà un Postgres (5432), un Redis (6379) ou un service
+> sur 8000 en cours d'exécution. Le backend tourne avec `USE_IN_MEMORY_DB=false` → persistance
+> dans le Postgres du compose (volume `pgdata`).
+>
+> Pour exposer Postgres sur l'hôte (debug), décommentez le mapping `5433:5432` dans
+> `infra/docker-compose.yml`.
 
 ### Développement sans Docker
 

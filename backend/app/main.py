@@ -36,6 +36,21 @@ app.include_router(billing.router)
 app.include_router(ws.router)
 
 
+@app.on_event("startup")
+async def _startup() -> None:
+    """Initialise la persistance au démarrage.
+
+    En mode SQL, instancier le store déclenche la création des tables ORM (create_all),
+    de sorte que la base est prête avant la première requête.
+    """
+    from app.repositories.store import get_store
+
+    get_store()
+    logging.getLogger(__name__).info(
+        "Démarrage OK (in_memory=%s)", get_settings().use_in_memory_db
+    )
+
+
 @app.get("/")
 async def root() -> dict:
     return {"message": "Quantum Trade AI API", "docs": "/docs", "health": "/health"}
