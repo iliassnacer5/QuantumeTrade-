@@ -71,16 +71,37 @@ async def _oanda_candles(symbol: str, interval: str, limit: int) -> list[Candle]
     return out
 
 
+async def _yahoo_candles(symbol: str, interval: str, limit: int) -> list[Candle]:
+    """Bougies réelles via Yahoo Finance (actions & forex, sans clé)."""
+    from app.data import yahoo
+
+    rows = await yahoo.fetch_ohlcv(symbol, interval, limit)
+    return [Candle(r["open"], r["high"], r["low"], r["close"], r["volume"]) for r in rows]
+
+
 async def load_candles(symbol: str, interval: str = "1h", limit: int = 200) -> list[Candle]:
-    """Charge les bougies selon la classe d'actif, avec repli synthétique."""
+    """Charge les bougies réelles selon la classe d'actif, avec repli synthétique.
+
+    crypto -> Binance ; actions -> Alpaca (si clé) sinon Yahoo ; forex -> OANDA (si clé) sinon Yahoo.
+    """
     cls = asset_class(symbol)
     try:
         if cls == "crypto":
             candles = await binance.fetch_klines(symbol, interval=interval, limit=limit)
         elif cls == "stock":
-            candles = await _alpaca_candles(symbol, interval, limit)
+            try:
+                candles = await _alpaca_candles(symbol, interval, limit)
+                if len(candles) < 60:
+                    candles = await _yahoo_candles(symbol, interval, limit)
+            except Exception:  # noqa: BLE001 — pas de clé Alpaca -> Yahoo
+                candles = await _yahoo_candles(symbol, interval, limit)
         elif cls == "forex":
-            candles = await _oanda_candles(symbol, interval, limit)
+            try:
+                candles = await _oanda_candles(symbol, interval, limit)
+                if len(candles) < 60:
+                    candles = await _yahoo_candles(symbol, interval, limit)
+            except Exception:  # noqa: BLE001 — pas de clé OANDA -> Yahoo
+                candles = await _yahoo_candles(symbol, interval, limit)
         else:
             candles = []
         if len(candles) >= 60:

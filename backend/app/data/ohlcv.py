@@ -57,10 +57,17 @@ def _synthetic_ohlcv(interval: str, limit: int) -> list[dict]:
 
 
 async def get_ohlcv(symbol: str, interval: str = "1h", limit: int = 200) -> list[dict]:
+    """OHLCV horodaté selon la classe d'actif : Binance (crypto), Yahoo (actions/forex), synthétique."""
+    from app.data import markets, yahoo
+
+    cls = markets.asset_class(symbol)
     try:
-        data = await _binance_ohlcv(symbol, interval, limit)
+        if cls == "crypto":
+            data = await _binance_ohlcv(symbol, interval, limit)
+        else:  # actions / forex -> Yahoo Finance (réel, sans clé)
+            data = await yahoo.fetch_ohlcv(symbol, interval, limit)
         if len(data) >= 10:
             return data
     except Exception as exc:  # noqa: BLE001
-        logger.warning("OHLCV Binance indisponible (%s), repli synthétique", exc)
+        logger.warning("OHLCV %s (%s) indisponible (%s), repli synthétique", symbol, cls, exc)
     return _synthetic_ohlcv(interval, limit)
