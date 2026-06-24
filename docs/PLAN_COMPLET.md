@@ -283,13 +283,13 @@ Exécution paper→réel sécurisée ✅ · copy-trading fonctionnel ✅ · mark
 
 ---
 
-## PHASE 5 — SCALE & WHITE-LABEL (Continu)
+## PHASE 5 — SCALE & WHITE-LABEL (Continu) ✅
 
-- [ ] Offre Enterprise white-label (courtiers, néo-banques)
-- [ ] SLA, conformité dédiée, multi-comptes avancé
-- [ ] Expansion internationale (i18n, multi-juridictions)
-- [ ] Optimisation continue coûts LLM + performance infra
-- [ ] Observabilité : monitoring, tracing, alerting (Grafana/Prometheus/Sentry)
+- [x] Offre Enterprise white-label (branding par tenant + domaine perso + résolution publique)
+- [x] SLA (sondes /health/live + /health/ready), multi-comptes avancé (sièges par plan)
+- [x] Expansion internationale (i18n fr/en : catalogues + Accept-Language + locale persistée)
+- [x] Optimisation continue coûts LLM (cache TTL des complétions + métriques coût/tokens)
+- [x] Observabilité : /metrics Prometheus + tracing X-Request-ID + Sentry optionnel (Grafana via infra/monitoring)
 
 ---
 
