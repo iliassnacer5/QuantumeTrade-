@@ -33,10 +33,28 @@ quantum-trade-ai/
 
 ## Démarrage rapide (dev local)
 
-Prérequis : **Docker Desktop**, **Node 20+ / pnpm 9+**, **Python 3.11+**.
+Prérequis : **Docker Desktop** (seul prérequis pour la voie scriptée).
+
+### Le plus simple — un script lance tout
+
+```powershell
+# Windows (PowerShell)
+.\start.ps1            # build + démarre tout, attend le backend, affiche les URLs
+.\start.ps1 -Logs      # idem puis suit les logs
+.\stop.ps1             # arrête (  -Purge  pour reset la base )
+```
 
 ```bash
-# 1. Copier les variables d'environnement
+# Linux / macOS / Git Bash
+./start.sh             # build + démarre tout
+./start.sh --logs      # idem puis suit les logs
+./stop.sh              # arrête (  --purge  pour reset la base )
+```
+
+### Ou manuellement avec docker compose
+
+```bash
+# 1. Copier les variables d'environnement (le script le fait automatiquement)
 cp .env.example .env          # puis renseigner les clés API (optionnel en dev)
 
 # 2. Lancer toute la stack (postgres + redis + redpanda + backend + frontend)
