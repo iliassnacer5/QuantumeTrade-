@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, Query
 
-from app.core.deps import current_user
+from app.core.deps import current_user, store_dep
+from app.data.heatmap import get_heatmap
 from app.data.ohlcv import get_ohlcv
 from app.models.entities import User
 from app.models.signal import Timeframe
+from app.repositories.store import AppStore
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/market", tags=["market"])
 
 _TF_INTERVAL = {
@@ -25,6 +30,22 @@ async def ohlcv(
     timeframe: Timeframe = Query(Timeframe.SWING),
     limit: int = Query(200, ge=20, le=500),
     _user: User = Depends(current_user),
+    store: AppStore = Depends(store_dep),
 ) -> list[dict]:
     interval = _TF_INTERVAL.get(timeframe, "1h")
-    return await get_ohlcv(asset, interval=interval, limit=limit)
+    data = await get_ohlcv(asset, interval=interval, limit=limit)
+    # Ingestion best-effort vers TimescaleDB (no-op en mode in-memory).
+    try:
+        store.market.upsert_ohlcv(asset, interval, data)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Ingestion OHLCV échouée (%s)", exc)
+    return data
+
+
+@router.get("/heatmap")
+async def heatmap(
+    user: User = Depends(current_user),
+) -> list[dict]:
+    """Variation 24h des actifs de la watchlist (heatmap marché)."""
+    symbols = user.watchlist or ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
+    return await get_heatmap(symbols)

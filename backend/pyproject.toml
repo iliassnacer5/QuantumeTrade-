@@ -17,6 +17,7 @@ dependencies = [
     "python-jose[cryptography]>=3.3",
     "passlib[argon2]>=1.7",
     "python-multipart>=0.0.9",
+    "stripe>=10.0",
 ]
 
 [project.optional-dependencies]

@@ -12,10 +12,12 @@ from __future__ import annotations
 import json
 import uuid
 
+from datetime import UTC, datetime
+
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.models.db import Base, SignalORM, TenantORM, UserORM
+from app.models.db import Base, OhlcvORM, SignalORM, TenantORM, UserORM
 from app.models.entities import StoredSignal, Tenant, User
 
 
@@ -40,6 +42,13 @@ def _user_to_entity(o: UserORM) -> User:
         capital=o.capital,
         watchlist=json.loads(o.watchlist or "[]"),
         onboarded=o.onboarded,
+        max_exposure_pct=o.max_exposure_pct,
+        max_daily_signals=o.max_daily_signals,
+        daily_loss_limit_pct=o.daily_loss_limit_pct,
+        alert_email=o.alert_email,
+        alert_telegram=o.alert_telegram,
+        telegram_chat_id=o.telegram_chat_id,
+        mfa_secret=o.mfa_secret,
     )
 
 
@@ -89,6 +98,13 @@ class SqlUserRepository:
             o.onboarded = user.onboarded
             o.full_name = user.full_name
             o.mfa_enabled = user.mfa_enabled
+            o.max_exposure_pct = user.max_exposure_pct
+            o.max_daily_signals = user.max_daily_signals
+            o.daily_loss_limit_pct = user.daily_loss_limit_pct
+            o.alert_email = user.alert_email
+            o.alert_telegram = user.alert_telegram
+            o.telegram_chat_id = user.telegram_chat_id
+            o.mfa_secret = user.mfa_secret
             s.commit()
             return _user_to_entity(o)
 
@@ -140,6 +156,7 @@ class SqlSignalRepository:
                 confidence=payload.get("confidence", 0),
                 timeframe=payload.get("timeframe"),
                 rationale=payload.get("rationale"),
+                position_value=payload.get("position_value"),
             )
             s.add(o)
             s.commit()
@@ -161,6 +178,56 @@ class SqlSignalRepository:
             return StoredSignal(id=r.id, tenant_id=r.tenant_id, payload=_signal_payload(r)) if r else None
 
 
+class SqlMarketRepository:
+    """Persistance OHLCV (ingestion -> TimescaleDB en prod, table simple en test)."""
+
+    def __init__(self, sm: sessionmaker[Session]) -> None:
+        self._sm = sm
+
+    def upsert_ohlcv(self, symbol: str, timeframe: str, rows: list[dict]) -> int:
+        """Insère/MAJ des bougies (idempotent sur la clé symbol+timeframe+time). Retourne le nb traité."""
+        count = 0
+        with self._sm() as s:
+            for r in rows:
+                t = r["time"]
+                ts = datetime.fromtimestamp(t, UTC) if isinstance(t, (int, float)) else t
+                s.merge(
+                    OhlcvORM(
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        time=ts,
+                        open=r["open"],
+                        high=r["high"],
+                        low=r["low"],
+                        close=r["close"],
+                        volume=r.get("volume", 0.0),
+                    )
+                )
+                count += 1
+            s.commit()
+        return count
+
+    def count(self, symbol: str, timeframe: str) -> int:
+        from sqlalchemy import func
+
+        with self._sm() as s:
+            return s.scalar(
+                select(func.count())
+                .select_from(OhlcvORM)
+                .where(OhlcvORM.symbol == symbol, OhlcvORM.timeframe == timeframe)
+            ) or 0
+
+
+class NoopMarketRepository:
+    """Pas de persistance OHLCV en mode in-memory (pas de TimescaleDB)."""
+
+    def upsert_ohlcv(self, symbol: str, timeframe: str, rows: list[dict]) -> int:
+        return 0
+
+    def count(self, symbol: str, timeframe: str) -> int:
+        return 0
+
+
 def _signal_payload(r: SignalORM) -> dict:
     return {
         "asset": r.symbol,
@@ -174,4 +241,6 @@ def _signal_payload(r: SignalORM) -> dict:
         "confidence": r.confidence,
         "timeframe": r.timeframe,
         "rationale": r.rationale,
+        "position_value": r.position_value,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
     }

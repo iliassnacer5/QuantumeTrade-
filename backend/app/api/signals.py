@@ -9,7 +9,7 @@ from app.models.entities import User
 from app.models.schemas import GenerateSignalRequest
 from app.models.signal import SignalCard
 from app.repositories.store import AppStore
-from app.services import signal_service
+from app.services import risk_service, signal_service
 
 router = APIRouter(prefix="/api/signals", tags=["signals"])
 
@@ -33,6 +33,11 @@ async def generate(
             status.HTTP_402_PAYMENT_REQUIRED,
             f"Plan '{plan}' limité à {allowed} marché(s). Passez à un plan supérieur.",
         )
+
+    # Garde-fous de risque (exposition / signaux quotidiens) — protection du capital.
+    ok, reason = risk_service.check_can_generate(user, store)
+    if not ok:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, reason)
 
     return await signal_service.generate_for_user(
         user, store, asset=body.asset, timeframe=body.timeframe, notify=body.notify

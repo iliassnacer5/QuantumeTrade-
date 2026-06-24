@@ -35,10 +35,16 @@ class _Signals(Protocol):
     def get(self, signal_id: str) -> StoredSignal | None: ...
 
 
+class _Market(Protocol):
+    def upsert_ohlcv(self, symbol: str, timeframe: str, rows: list[dict]) -> int: ...
+    def count(self, symbol: str, timeframe: str) -> int: ...
+
+
 class AppStore:
     users: _Users
     tenants: _Tenants
     signals: _Signals
+    market: _Market
 
     def __init__(self) -> None:
         settings = get_settings()
@@ -48,12 +54,15 @@ class AppStore:
                 TenantRepository,
                 UserRepository,
             )
+            from app.repositories.sql import NoopMarketRepository
 
             self.users = UserRepository()
             self.tenants = TenantRepository()
             self.signals = SignalRepository()
+            self.market = NoopMarketRepository()
         else:
             from app.repositories.sql import (
+                SqlMarketRepository,
                 SqlSignalRepository,
                 SqlTenantRepository,
                 SqlUserRepository,
@@ -64,6 +73,7 @@ class AppStore:
             self.users = SqlUserRepository(sm)
             self.tenants = SqlTenantRepository(sm)
             self.signals = SqlSignalRepository(sm)
+            self.market = SqlMarketRepository(sm)
 
 
 _store: AppStore | None = None

@@ -38,6 +38,48 @@ export type Me = {
   plan: string;
 };
 
+export type Settings = {
+  watchlist: string[];
+  max_exposure_pct: number;
+  max_daily_signals: number;
+  daily_loss_limit_pct: number;
+  alert_email: boolean;
+  alert_telegram: boolean;
+  telegram_chat_id: string | null;
+  mfa_enabled: boolean;
+};
+
+export type RiskStatus = {
+  capital: number;
+  exposure_value: number;
+  exposure_pct: number;
+  max_exposure_pct: number;
+  daily_signals: number;
+  max_daily_signals: number;
+  breaches: string[];
+  ok: boolean;
+};
+
+export type Position = {
+  id?: string;
+  asset: string;
+  direction: string;
+  entry: number;
+  current_price: number | null;
+  size: number;
+  value: number;
+  pnl: number;
+};
+
+export type Portfolio = {
+  total_pnl: number;
+  total_value: number;
+  pnl_pct: number;
+  positions: Position[];
+};
+
+export type HeatmapItem = { symbol: string; price: number; change_pct: number };
+
 function token(): string | null {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem('qta_token');
@@ -83,7 +125,19 @@ export const api = {
   generate: (asset: string, timeframe: string, notify = false) =>
     req<Signal>('/api/signals/generate', { method: 'POST', body: JSON.stringify({ asset, timeframe, notify }) }),
   plans: () => req<{ id: string; price: number; features: string[] }[]>('/api/billing/plans'),
-  checkout: (plan: string) => req<Me>(`/api/billing/checkout/${plan}`, { method: 'POST' }),
+  checkout: (plan: string) =>
+    req<{ mode: string; checkout_url?: string; user?: Me }>(`/api/billing/checkout/${plan}`, {
+      method: 'POST',
+    }),
+  getSettings: () => req<Settings>('/api/settings'),
+  updateSettings: (patch: Partial<Settings>) =>
+    req<Settings>('/api/settings', { method: 'PATCH', body: JSON.stringify(patch) }),
+  riskStatus: () => req<RiskStatus>('/api/risk/status'),
+  portfolio: () => req<Portfolio>('/api/portfolio'),
+  heatmap: () => req<HeatmapItem[]>('/api/market/heatmap'),
+  mfaSetup: () => req<{ secret: string; otpauth_uri: string }>('/api/auth/mfa/setup', { method: 'POST' }),
+  mfaEnable: (code: string) => req<Me>('/api/auth/mfa/enable', { method: 'POST', body: JSON.stringify({ code }) }),
+  mfaDisable: () => req<Me>('/api/auth/mfa/disable', { method: 'POST' }),
 };
 
 export function openSignalStream(onSignal: (s: Signal) => void): WebSocket | null {

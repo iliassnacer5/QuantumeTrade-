@@ -37,7 +37,41 @@ class UserORM(Base):
     # Watchlist sérialisée en JSON (portable Postgres/SQLite).
     watchlist: Mapped[str] = mapped_column(Text, default="[]")
     onboarded: Mapped[bool] = mapped_column(Boolean, default=False)
+    max_exposure_pct: Mapped[float] = mapped_column(Float, default=50.0)
+    max_daily_signals: Mapped[int] = mapped_column(Integer, default=50)
+    daily_loss_limit_pct: Mapped[float] = mapped_column(Float, default=5.0)
+    alert_email: Mapped[bool] = mapped_column(Boolean, default=True)
+    alert_telegram: Mapped[bool] = mapped_column(Boolean, default=False)
+    telegram_chat_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    mfa_secret: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AuditORM(Base):
+    """Journal d'audit de sécurité (événements sensibles)."""
+
+    __tablename__ = "audit_log"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    tenant_id: Mapped[str | None] = mapped_column(String, index=True, nullable=True)
+    actor: Mapped[str | None] = mapped_column(String, nullable=True)
+    action: Mapped[str] = mapped_column(String, index=True)
+    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ip: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class OhlcvORM(Base):
+    """Série temporelle OHLCV (hypertable TimescaleDB en prod, table simple en SQLite/test)."""
+
+    __tablename__ = "ohlcv"
+    symbol: Mapped[str] = mapped_column(String, primary_key=True)
+    timeframe: Mapped[str] = mapped_column(String, primary_key=True)
+    time: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    open: Mapped[float] = mapped_column(Float)
+    high: Mapped[float] = mapped_column(Float)
+    low: Mapped[float] = mapped_column(Float)
+    close: Mapped[float] = mapped_column(Float)
+    volume: Mapped[float] = mapped_column(Float)
 
 
 class SignalORM(Base):
@@ -55,4 +89,5 @@ class SignalORM(Base):
     confidence: Mapped[int] = mapped_column(Integer)
     timeframe: Mapped[str | None] = mapped_column(String, nullable=True)
     rationale: Mapped[str | None] = mapped_column(Text, nullable=True)
+    position_value: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

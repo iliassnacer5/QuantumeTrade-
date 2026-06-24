@@ -4,7 +4,16 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { Chart } from '@/components/Chart';
 import { SignalCard } from '@/components/SignalCard';
-import { api, clearToken, openSignalStream, type Me, type Signal } from '@/lib/api';
+import {
+  api,
+  clearToken,
+  openSignalStream,
+  type HeatmapItem,
+  type Me,
+  type Portfolio,
+  type RiskStatus,
+  type Signal,
+} from '@/lib/api';
 
 const TIMEFRAMES = ['scalp', 'intraday', 'swing', 'position'];
 
@@ -18,6 +27,20 @@ export default function DashboardPage() {
   const [error, setError] = useState('');
   const [live, setLive] = useState(false);
   const [selected, setSelected] = useState<Signal | null>(null);
+  const [pnl, setPnl] = useState<Portfolio | null>(null);
+  const [risk, setRisk] = useState<RiskStatus | null>(null);
+  const [heat, setHeat] = useState<HeatmapItem[]>([]);
+
+  const loadPanels = useCallback(async () => {
+    try {
+      const [p, r, h] = await Promise.all([api.portfolio(), api.riskStatus(), api.heatmap()]);
+      setPnl(p);
+      setRisk(r);
+      setHeat(h);
+    } catch {
+      /* panels best-effort */
+    }
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -25,10 +48,11 @@ export default function DashboardPage() {
       setMe(m);
       setAsset(m.watchlist[0] ?? 'BTC/USDT');
       setSignals(s);
+      loadPanels();
     } catch {
       router.push('/login');
     }
-  }, [router]);
+  }, [router, loadPanels]);
 
   useEffect(() => {
     load();
@@ -53,6 +77,7 @@ export default function DashboardPage() {
       // Le WS pousse aussi le signal ; on déduplique par sécurité.
       setSignals((prev) => (prev.some((p) => p.id === sig.id) ? prev : [sig, ...prev]));
       setSelected(sig);
+      loadPanels();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
     } finally {
@@ -78,10 +103,55 @@ export default function DashboardPage() {
             </p>
           )}
         </div>
-        <button onClick={logout} className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
-          Déconnexion
-        </button>
+        <div className="flex gap-2">
+          <a href="/settings" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
+            Paramètres
+          </a>
+          <button onClick={logout} className="ml-2 rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
+            Déconnexion
+          </button>
+        </div>
       </header>
+
+      {/* Panneaux : P&L · Risque · Heatmap */}
+      <section className="mb-6 grid gap-4 md:grid-cols-3">
+        <div className="rounded-xl border border-border bg-surface p-4">
+          <div className="text-xs text-muted">P&amp;L latent</div>
+          <div className={`text-2xl font-bold ${(pnl?.total_pnl ?? 0) >= 0 ? 'text-buy' : 'text-sell'}`}>
+            {pnl ? `${pnl.total_pnl >= 0 ? '+' : ''}${pnl.total_pnl} USDT` : '—'}
+          </div>
+          <div className="text-xs text-muted">
+            {pnl ? `${pnl.pnl_pct}% · ${pnl.positions.length} position(s)` : ''}
+          </div>
+        </div>
+        <div className="rounded-xl border border-border bg-surface p-4">
+          <div className="text-xs text-muted">Exposition</div>
+          <div className={`text-2xl font-bold ${risk && !risk.ok ? 'text-sell' : 'text-white'}`}>
+            {risk ? `${risk.exposure_pct}%` : '—'}
+          </div>
+          <div className="text-xs text-muted">
+            {risk ? `plafond ${risk.max_exposure_pct}% · ${risk.daily_signals}/${risk.max_daily_signals} signaux` : ''}
+          </div>
+          {risk?.breaches?.map((b) => (
+            <div key={b} className="mt-1 text-[10px] text-sell">⚠ {b}</div>
+          ))}
+        </div>
+        <div className="rounded-xl border border-border bg-surface p-4">
+          <div className="mb-1 text-xs text-muted">Heatmap 24h</div>
+          <div className="flex flex-wrap gap-1">
+            {heat.map((h) => (
+              <span
+                key={h.symbol}
+                title={`${h.symbol} ${h.price}`}
+                className={`rounded px-2 py-1 text-[11px] font-mono ${h.change_pct >= 0 ? 'bg-buy-soft text-buy' : 'bg-sell-soft text-sell'}`}
+              >
+                {h.symbol.split('/')[0]} {h.change_pct >= 0 ? '+' : ''}
+                {h.change_pct}%
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
 
       <section className="mb-6 flex flex-wrap items-end gap-3 rounded-xl border border-border bg-surface p-4">
         <div>

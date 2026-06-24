@@ -14,7 +14,7 @@ from app.domain.indicators import Candle
 from app.domain.risk import RiskParams
 from app.models.entities import User
 from app.models.signal import SignalCard, Timeframe
-from app.realtime.hub import get_hub
+from app.realtime import bus
 from app.repositories.store import AppStore
 from app.signal_engine.engine import generate_signal
 from app.alerts.notifier import notify_signal
@@ -76,9 +76,13 @@ async def generate_for_user(
     stored = store.signals.add(user.tenant_id, payload)
     payload["id"] = stored.id
 
-    # Diffusion temps réel + alerte
-    await get_hub().broadcast(user.tenant_id, {"type": "signal", "data": payload})
+    # Diffusion temps réel (Redis pub/sub si actif, sinon hub mémoire) + alerte
+    await bus.publish(user.tenant_id, {"type": "signal", "data": payload})
     if notify:
-        await notify_signal(card, email=user.email)
+        await notify_signal(
+            card,
+            email=user.email if getattr(user, "alert_email", True) else None,
+            telegram_chat_id=getattr(user, "telegram_chat_id", None),
+        )
 
     return card

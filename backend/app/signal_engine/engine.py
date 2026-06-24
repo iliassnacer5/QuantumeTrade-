@@ -66,4 +66,7 @@ async def generate_signal(
         confidence=decision.confidence,
         timeframe=timeframe,
         rationale=decision.rationale,
+        position_size=levels.position_size,
+        position_value=levels.position_value,
+        risk_amount=levels.risk_amount,
     )

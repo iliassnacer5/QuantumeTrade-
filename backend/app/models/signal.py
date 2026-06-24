@@ -36,4 +36,9 @@ class SignalCard(BaseModel):
     confidence: int = Field(..., ge=0, le=100, description="Score de confiance 0-100%")
     timeframe: Timeframe
     rationale: str = Field(..., description="Justification IA en langage naturel")
+    # Dimensionnement (Risk Management) — utile pour l'exposition / P&L
+    position_size: float | None = Field(default=None, description="Quantité d'actif")
+    position_value: float | None = Field(default=None, description="Valeur de la position en devise")
+    risk_amount: float | None = Field(default=None, description="Montant risqué en devise")
+    risk_warning: str | None = Field(default=None, description="Avertissement de risque éventuel")
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

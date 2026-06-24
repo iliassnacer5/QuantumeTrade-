@@ -19,6 +19,16 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str = Field(pattern=_EMAIL_RE)
     password: str
+    mfa_code: str | None = None
+
+
+class MfaSetupResponse(BaseModel):
+    secret: str
+    otpauth_uri: str
+
+
+class MfaEnableRequest(BaseModel):
+    code: str
 
 
 class TokenResponse(BaseModel):
@@ -47,3 +57,26 @@ class GenerateSignalRequest(BaseModel):
     asset: str = "BTC/USDT"
     timeframe: Timeframe = Timeframe.SWING
     notify: bool = False
+
+
+class SettingsRequest(BaseModel):
+    """Mise à jour partielle des paramètres utilisateur (tous champs optionnels)."""
+
+    watchlist: list[str] | None = Field(default=None, max_length=20)
+    max_exposure_pct: float | None = Field(default=None, gt=0, le=100)
+    max_daily_signals: int | None = Field(default=None, ge=1, le=1000)
+    daily_loss_limit_pct: float | None = Field(default=None, gt=0, le=100)
+    alert_email: bool | None = None
+    alert_telegram: bool | None = None
+    telegram_chat_id: str | None = None
+
+
+class SettingsResponse(BaseModel):
+    watchlist: list[str]
+    max_exposure_pct: float
+    max_daily_signals: int
+    daily_loss_limit_pct: float
+    alert_email: bool
+    alert_telegram: bool
+    telegram_chat_id: str | None
+    mfa_enabled: bool

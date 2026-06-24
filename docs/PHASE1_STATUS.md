@@ -1,6 +1,17 @@
 # Phase 1 (MVP) — État d'avancement
 
-La boucle de valeur de bout en bout est implémentée, **runnable et testée** (32 tests backend verts, build frontend OK). Le système tourne **sans clés API ni Postgres** (repositories en mémoire + repli déterministe / synthétique), et bascule automatiquement vers les vrais fournisseurs dès que les clés sont configurées.
+> ✅ **Phase 1 COMPLÈTE** — tous les points du cahier des charges sont implémentés, **testés (48 tests backend verts)** et **vérifiés en Docker** (Postgres + Redis). Build frontend OK (9 pages). Le système tourne sans clés ni Postgres (repos mémoire + repli déterministe) et bascule automatiquement vers les vrais fournisseurs/persistance dès configuration.
+
+## Lots de complétion (du MVP à la Phase 1 complète)
+| Lot | Livré | Vérifié |
+|-----|-------|---------|
+| **Redis pub/sub** (multi-instance) + repli mémoire | `app/realtime/bus.py` | Docker : `redis=True` au boot |
+| **Ingestion OHLCV → TimescaleDB** | `app/repositories/sql.py` (SqlMarketRepository) + `OhlcvORM` | Docker : 50 lignes dans la hypertable `ohlcv` |
+| **Règles de risque appliquées** (expo max, signaux/jour) + `/api/risk/status` | `app/services/risk_service.py` | Test : 2e génération bloquée `429` |
+| **P&L latent** `/api/portfolio` + **heatmap** `/api/market/heatmap` | `portfolio_service.py`, `data/heatmap.py` | Docker : heatmap données Binance réelles |
+| **Écran Paramètres** + préférences alertes (Telegram chat_id) | `frontend/app/settings/page.tsx`, `api/settings.py` | Build OK + tests |
+| **Stripe réel** (Checkout + webhook signé) + repli stub | `app/api/billing.py` | Webhook signature vérifiée |
+| **Rate limiting** + **audit log** + **MFA (TOTP)** | `core/ratelimit.py`, `services/audit.py`, `core/totp.py` | Docker : `429` brute-force, MFA login OK |
 
 ## Couverture par module
 
@@ -43,9 +54,10 @@ inscription → onboarding → /signals/generate
 | Signal généré end-to-end (data→agents→engine→card) | ✅ Testé |
 | Justification IA lisible | ✅ Champ `rationale` rempli par le Master |
 | Alerte email + Telegram | ✅ Implémenté (no-op sans clé, réel avec clé) |
-| Paiement Stripe | 🟡 Stub fonctionnel (gating + checkout + webhook) ; intégration Stripe réelle = brancher la clé |
-| Tests d'intégration verts | ✅ 32/32 |
-| Déployé sur staging | ⬜ Action infra (CI build OK) |
+| Paiement Stripe | ✅ Checkout réel + webhook signé (repli stub sans clé) |
+| Tests d'intégration verts | ✅ 48/48 |
+| Sécurité (MFA, rate limit, audit, multi-tenant) | ✅ Implémenté et vérifié en Docker |
+| Déployé sur staging | ⬜ Action infra (CI build OK, stack Docker vérifiée en local) |
 
 ## Renforcements MVP livrés
 - **Bascule Postgres réelle** : repositories SQL (SQLAlchemy) interface-identiques aux repos mémoire,
@@ -61,7 +73,7 @@ inscription → onboarding → /signals/generate
    Les tables sont aussi créées automatiquement au démarrage (`create_all`).
 3. Le routing LiteLLM et les agents basculent automatiquement sur les LLM réels.
 
-## Limites assumées du MVP (par périmètre)
-- Persistance en mémoire par défaut (modèles SQLAlchemy + schéma SQL prêts pour la bascule).
-- Sentiment via lexique en l'absence de LLM (FinBERT/LLM en Phase 2).
-- Pas encore : backtesting (M6), exécution broker (M8), mobile, autres agents → Phases 2-4.
+## Limites assumées (par périmètre — relèvent des Phases 2-4)
+- Sentiment via lexique tant qu'aucune clé LLM n'est fournie (FinBERT/LLM réel en Phase 2 ; le routing LiteLLM est déjà branché).
+- Hors périmètre Phase 1 : backtesting (M6), exécution broker (M8), mobile, agents Pattern/Fondamental/Macro → Phases 2-4.
+- Le P&L est *latent* (positions dérivées des signaux) ; le journal de trades réel arrive en Phase 3.

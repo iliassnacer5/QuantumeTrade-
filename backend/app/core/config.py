@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # JWT
     jwt_algorithm: str = "HS256"
 
+    # Sécurité
+    rate_limit_enabled: bool = True
+
     # LLM
     anthropic_api_key: str = ""
     google_api_key: str = ""
