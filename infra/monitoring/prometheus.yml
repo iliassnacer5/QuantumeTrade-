@@ -1,0 +1,9 @@
+# Configuration Prometheus — scrape les métriques de l'API Quantum Trade AI (Phase 5).
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: quantum-backend
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["backend:8000"]

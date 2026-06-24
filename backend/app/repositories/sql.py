@@ -54,6 +54,7 @@ def _user_to_entity(o: UserORM) -> User:
         alert_sms=o.alert_sms,
         phone=o.phone,
         push_token=o.push_token,
+        locale=getattr(o, "locale", "fr") or "fr",
         mfa_secret=o.mfa_secret,
     )
 
@@ -120,6 +121,7 @@ class SqlUserRepository:
             o.alert_sms = user.alert_sms
             o.phone = user.phone
             o.push_token = user.push_token
+            o.locale = user.locale
             o.mfa_secret = user.mfa_secret
             s.commit()
             return _user_to_entity(o)

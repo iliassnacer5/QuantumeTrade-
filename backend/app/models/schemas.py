@@ -74,6 +74,7 @@ class SettingsRequest(BaseModel):
     alert_sms: bool | None = None
     phone: str | None = None
     push_token: str | None = None
+    locale: str | None = None
 
 
 class SettingsResponse(BaseModel):
@@ -89,4 +90,5 @@ class SettingsResponse(BaseModel):
     alert_sms: bool
     phone: str | None
     push_enabled: bool
+    locale: str
     mfa_enabled: bool

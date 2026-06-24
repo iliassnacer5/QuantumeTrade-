@@ -82,19 +82,67 @@ async def _acompletion(model: str, messages: list[dict], api_key: str | None, ma
     return content
 
 
-async def complete(prompt: str, *, role: str = "reasoning", max_tokens: int = 512) -> str:
-    """Complétion texte avec failover. Lève LLMUnavailable si aucun fournisseur."""
+# --- Cache TTL des complétions (Phase 5 : réduction des coûts LLM) ---
+import hashlib
+import time
+
+_cache: dict[str, tuple[float, str]] = {}
+
+
+def _cache_get(key: str) -> str | None:
+    item = _cache.get(key)
+    if item is None:
+        return None
+    expires, value = item
+    if expires < time.time():
+        _cache.pop(key, None)
+        return None
+    return value
+
+
+# Coût approximatif par 1k tokens (USD) pour estimer la dépense (métriques).
+_COST_PER_1K = {"gemini-2.5-pro": 0.005, "gemini-2.5-flash": 0.0006, "claude": 0.003}
+
+
+def _track_cost(model: str, prompt: str, output: str) -> None:
+    from app.core import metrics
+
+    tokens = (len(prompt) + len(output)) / 4.0  # heuristique ~4 chars/token
+    rate = next((v for k, v in _COST_PER_1K.items() if k in model), 0.002)
+    metrics.inc("llm_tokens_total", tokens, provider=_provider_of(model))
+    metrics.inc("llm_cost_usd_total", round(tokens / 1000.0 * rate, 6), provider=_provider_of(model))
+
+
+async def complete(prompt: str, *, role: str = "reasoning", max_tokens: int = 512, use_cache: bool = True) -> str:
+    """Complétion texte avec failover + cache TTL. Lève LLMUnavailable si aucun fournisseur."""
+    from app.core import metrics
+
     if not get_settings().llm_enabled:
         raise LLMUnavailable("LLM désactivé")
     chain = _models_for_role(role)
     if not chain:
         raise LLMUnavailable(f"Aucun modèle disponible pour le rôle '{role}'")
+
+    cache_key = hashlib.sha256(f"{role}:{max_tokens}:{prompt}".encode()).hexdigest()
+    if use_cache:
+        cached = _cache_get(cache_key)
+        if cached is not None:
+            metrics.inc("llm_cache_hits_total", role=role)
+            return cached
+
     messages = [{"role": "user", "content": prompt}]
     last_exc: Exception | None = None
     for model in chain:
         try:
-            return await _acompletion(model, messages, _api_key_for(_provider_of(model)), max_tokens)
+            metrics.inc("llm_calls_total", provider=_provider_of(model), role=role)
+            out = await _acompletion(model, messages, _api_key_for(_provider_of(model)), max_tokens)
+            _track_cost(model, prompt, out)
+            if use_cache:
+                ttl = getattr(get_settings(), "llm_cache_ttl", 300)
+                _cache[cache_key] = (time.time() + ttl, out)
+            return out
         except Exception as exc:  # noqa: BLE001 — failover
+            metrics.inc("llm_errors_total", provider=_provider_of(model), role=role)
             logger.warning("LLM %s indisponible (%s), tentative suivante", model, exc)
             last_exc = exc
     raise LLMUnavailable(f"Échec de tous les fournisseurs pour '{role}': {last_exc}")

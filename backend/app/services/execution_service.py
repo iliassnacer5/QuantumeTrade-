@@ -133,6 +133,8 @@ async def place_order(
 
 
 def _persist_order(store: AppStore, tenant_id: str, conn_id: str, result: OrderResult) -> dict:
+    from app.core import metrics
+    metrics.inc("orders_placed_total", mode=result.mode, side=result.side)
     order_id = str(uuid.uuid4())
     return store.records.put(
         ORDER, order_id,

@@ -27,6 +27,7 @@ PLANS = [
     {"id": "starter", "price": 29, "markets": 3, "features": ["signaux illimités", "alertes multicanal"]},
     {"id": "pro", "price": 79, "markets": 999, "features": ["tous marchés", "backtesting", "AI Copilot"]},
     {"id": "elite", "price": 199, "markets": 999, "features": ["API", "copy-trading", "exécution auto"]},
+    {"id": "enterprise", "price": 0, "markets": 999, "features": ["white-label", "SLA dédié", "multi-comptes avancé", "sur devis"]},
 ]
 _PRICE_ENV = {"starter": "stripe_price_starter"}
 

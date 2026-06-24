@@ -31,6 +31,8 @@ FEATURE_MIN_PLAN: dict[str, str] = {
     "api_access": "elite",
     "copy_trading": "elite",
     "auto_execution": "elite",
+    "white_label": "enterprise",
+    "sla_priority": "enterprise",
 }
 
 

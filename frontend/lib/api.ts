@@ -46,8 +46,12 @@ export type Settings = {
   alert_email: boolean;
   alert_telegram: boolean;
   telegram_chat_id: string | null;
+  push_enabled?: boolean;
+  locale?: string;
   mfa_enabled: boolean;
 };
+
+export type Branding = { brand_name: string; primary_color: string; logo_url: string; custom_domain?: string; tenant_id?: string };
 
 export type RiskStatus = {
   capital: number;
@@ -260,6 +264,10 @@ export const api = {
   apiKeys: () => req<ApiKey[]>('/api/marketplace/api-keys'),
   createApiKey: (label: string) => req<{ id: string; api_key: string; prefix: string }>('/api/marketplace/api-keys', { method: 'POST', body: JSON.stringify({ label }) }),
   revokeApiKey: (id: string) => req<{ revoked: boolean }>(`/api/marketplace/api-keys/${id}`, { method: 'DELETE' }),
+  // Phase 5 — i18n + white-label
+  i18n: (locale: string) => req<{ locale: string; supported: string[]; messages: Record<string, string> }>(`/api/i18n/${locale}`),
+  branding: () => req<Branding>('/api/branding'),
+  setBranding: (b: Partial<Branding>) => req<Branding>('/api/branding', { method: 'PUT', body: JSON.stringify(b) }),
 };
 
 /** Copilot en streaming SSE. Appelle onDelta pour chaque fragment, onDone à la fin. */

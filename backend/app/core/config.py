@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     # Environnement
     environment: str = "dev"
     log_level: str = "INFO"
+    # Observabilité (Phase 5) — Sentry optionnel (no-op si vide).
+    sentry_dsn: str = ""
+    # Cache des complétions LLM (s) — réduction des coûts (Phase 5).
+    llm_cache_ttl: int = 300
 
     # API
     api_host: str = "0.0.0.0"

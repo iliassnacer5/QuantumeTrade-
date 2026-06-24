@@ -29,12 +29,16 @@ from app.api import (
     kyc,
     copytrading,
     marketplace,
+    i18n,
+    branding,
 )
 from app.core.config import get_settings
+from app.core.observability import ObservabilityMiddleware, init_sentry
 from app.core.ratelimit import RateLimitMiddleware
 
 settings = get_settings()
 logging.basicConfig(level=settings.log_level)
+init_sentry()
 
 
 @asynccontextmanager
@@ -69,6 +73,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(RateLimitMiddleware)
+app.add_middleware(ObservabilityMiddleware)
 
 # Routes
 app.include_router(health.router)
@@ -92,6 +97,8 @@ app.include_router(execution.router)
 app.include_router(kyc.router)
 app.include_router(copytrading.router)
 app.include_router(marketplace.router)
+app.include_router(i18n.router)
+app.include_router(branding.router)
 
 
 @app.get("/")

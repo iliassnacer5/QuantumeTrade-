@@ -77,6 +77,10 @@ async def generate_for_user(
     stored = store.signals.add(user.tenant_id, payload)
     payload["id"] = stored.id
 
+    # Observabilité (Phase 5)
+    from app.core import metrics
+    metrics.inc("signals_generated_total", direction=card.direction.value if hasattr(card.direction, "value") else str(card.direction))
+
     # Boucle d'apprentissage : enregistre l'issue (open) + scores d'agents pour le Journal.
     journal_service.record_signal(store, user.tenant_id, card, stored.id)
 

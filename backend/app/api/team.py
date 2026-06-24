@@ -21,6 +21,9 @@ from app.services import audit
 
 router = APIRouter(prefix="/api/team", tags=["team"])
 
+# Multi-comptes avancé (Phase 5) : nombre de sièges par plan.
+SEAT_LIMITS = {"pro": 5, "elite": 20, "enterprise": 1000}
+
 
 class InviteRequest(BaseModel):
     email: str
@@ -57,6 +60,13 @@ async def invite_member(
     user: User = Depends(require_feature("team")),
     store: AppStore = Depends(store_dep),
 ) -> dict:
+    # Limite de sièges selon le plan (multi-comptes avancé).
+    limit = SEAT_LIMITS.get(plan_of(user, store), 1)
+    if len(store.users.list_by_tenant(user.tenant_id)) >= limit:
+        raise HTTPException(
+            status.HTTP_402_PAYMENT_REQUIRED,
+            f"Limite de {limit} sièges atteinte pour votre plan. Passez à un plan supérieur.",
+        )
     if store.users.get_by_email(body.email):
         raise HTTPException(status.HTTP_409_CONFLICT, "Un compte existe déjà avec cet email")
     temp_password = secrets.token_urlsafe(9)
