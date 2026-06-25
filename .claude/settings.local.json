@@ -17,7 +17,9 @@
       "Bash(python -m pytest tests/test_phase2.py -q)",
       "Bash(git check-ignore *)",
       "Bash(python -c \"import app.main; print\\('app import OK'\\)\")",
-      "Bash(python -m pytest tests/test_phase5.py -q)"
+      "Bash(python -m pytest tests/test_phase5.py -q)",
+      "Bash(python -c \"import app.main; print\\('import OK'\\)\")",
+      "Bash(git commit *)"
     ]
   }
 }

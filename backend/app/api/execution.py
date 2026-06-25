@@ -8,13 +8,23 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from app.core.deps import store_dep
-from app.core.plans import require_feature
+from app.core.deps import current_user, store_dep
+from app.core.plans import plan_allows, plan_of
 from app.models.entities import User
 from app.repositories.store import AppStore
 from app.services import audit, execution_service
 
 router = APIRouter(prefix="/api/execution", tags=["execution"])
+
+
+def _require_live_allowed(user: User, store: AppStore) -> None:
+    """Le trading RÉEL exige le plan Elite (auto_execution). Le KYC est vérifié par connect_broker.
+    Le mode papier est libre (apprentissage sans risque)."""
+    if not plan_allows(plan_of(user, store), "auto_execution"):
+        raise HTTPException(
+            status.HTTP_402_PAYMENT_REQUIRED,
+            "Le trading réel est réservé au plan Elite. Le mode papier reste gratuit.",
+        )
 
 
 class ConnectRequest(BaseModel):
@@ -34,9 +44,11 @@ class OrderRequest(BaseModel):
 @router.post("/brokers", status_code=status.HTTP_201_CREATED)
 async def connect(
     body: ConnectRequest,
-    user: User = Depends(require_feature("auto_execution")),
+    user: User = Depends(current_user),
     store: AppStore = Depends(store_dep),
 ) -> dict:
+    if body.mode == "live":
+        _require_live_allowed(user, store)
     try:
         conn = execution_service.connect_broker(
             store, user.tenant_id, broker=body.broker, api_key=body.api_key,
@@ -50,7 +62,7 @@ async def connect(
 
 @router.get("/brokers")
 async def brokers(
-    user: User = Depends(require_feature("auto_execution")),
+    user: User = Depends(current_user),
     store: AppStore = Depends(store_dep),
 ) -> list[dict]:
     return execution_service.list_connections(store, user.tenant_id)
@@ -59,7 +71,7 @@ async def brokers(
 @router.delete("/brokers/{conn_id}")
 async def revoke(
     conn_id: str,
-    user: User = Depends(require_feature("auto_execution")),
+    user: User = Depends(current_user),
     store: AppStore = Depends(store_dep),
 ) -> dict:
     if not execution_service.revoke_connection(store, user.tenant_id, conn_id):
@@ -71,9 +83,13 @@ async def revoke(
 @router.post("/orders", status_code=status.HTTP_201_CREATED)
 async def place_order(
     body: OrderRequest,
-    user: User = Depends(require_feature("auto_execution")),
+    user: User = Depends(current_user),
     store: AppStore = Depends(store_dep),
 ) -> dict:
+    # Un ordre sur une connexion RÉELLE exige Elite + KYC ; le papier est libre.
+    conn = next((c for c in execution_service.list_connections(store, user.tenant_id) if c["id"] == body.conn_id), None)
+    if conn and conn.get("mode") == "live":
+        _require_live_allowed(user, store)
     try:
         order = await execution_service.place_order(
             store, user.tenant_id, conn_id=body.conn_id, symbol=body.symbol, side=body.side, qty=body.qty
@@ -86,7 +102,7 @@ async def place_order(
 
 @router.get("/orders")
 async def orders(
-    user: User = Depends(require_feature("auto_execution")),
+    user: User = Depends(current_user),
     store: AppStore = Depends(store_dep),
 ) -> list[dict]:
     return execution_service.list_orders(store, user.tenant_id)

@@ -46,17 +46,23 @@ def test_record_store_crud():
 
 
 # ---------------- Exécution broker ----------------
-def test_execution_gated_elite():
+def test_live_gated_elite_paper_free():
     client = TestClient(app)
     h, _ = _register(client)
-    _upgrade(client, h, "pro")  # pro != elite -> auto_execution refusé
-    assert client.get("/api/execution/brokers", headers=h).status_code == 402
+    _upgrade(client, h, "pro")  # pro != elite
+    # Le papier est LIBRE (apprentissage sans risque) même hors Elite
+    assert client.get("/api/execution/brokers", headers=h).status_code == 200
+    assert client.post("/api/execution/brokers", json={"broker": "paper", "mode": "paper"}, headers=h).status_code == 201
+    # Le RÉEL reste réservé Elite -> 402
+    assert client.post(
+        "/api/execution/brokers",
+        json={"broker": "alpaca", "api_key": "k", "api_secret": "s", "mode": "live"}, headers=h,
+    ).status_code == 402
 
 
 def test_paper_order_flow():
     client = TestClient(app)
-    h, _ = _register(client)
-    _upgrade(client, h, "elite")
+    h, _ = _register(client)  # user FREE : le papier doit marcher sans upgrade
     # Connexion broker papier
     conn = client.post("/api/execution/brokers", json={"broker": "paper", "mode": "paper"}, headers=h)
     assert conn.status_code == 201

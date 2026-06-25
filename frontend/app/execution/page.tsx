@@ -26,7 +26,7 @@ export default function ExecutionPage() {
     load();
   }, []);
 
-  const locked = plan && !plan.features.auto_execution;
+  const liveAllowed = !!plan?.features.auto_execution;
 
   async function submitKyc() {
     const name = prompt('Nom légal complet ?');
@@ -62,22 +62,12 @@ export default function ExecutionPage() {
     }
   }
 
-  if (locked)
-    return (
-      <div className="p-8">
-        <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-6 text-yellow-200">
-          L&apos;exécution broker est réservée au plan <b>Elite</b>.{' '}
-          <a href="/plans" className="underline">Mettre à niveau</a>
-        </div>
-      </div>
-    );
-
   return (
     <div className="p-8 space-y-6">
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Exécution broker</h1>
-          <p className="text-sm text-muted">Mode papier par défaut. Réel après KYC.</p>
+          <p className="text-sm text-muted">Mode papier <b className="text-buy">gratuit</b> pour s&apos;entraîner. Réel = Elite + KYC.</p>
         </div>
         <a href="/dashboard" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">← Dashboard</a>
       </header>
@@ -103,8 +93,10 @@ export default function ExecutionPage() {
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-white">Connexions broker</h2>
           <div className="flex gap-2">
-            <button onClick={() => connect('paper')} className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">+ Papier</button>
-            <button onClick={() => connect('live')} disabled={kyc !== 'verified'} className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface disabled:opacity-40">+ Réel (Alpaca)</button>
+            <button onClick={() => connect('paper')} className="rounded-lg border border-buy/40 bg-buy/10 px-3 py-1 text-sm text-buy hover:bg-buy/20">+ Papier (gratuit)</button>
+            <button onClick={() => connect('live')} disabled={!liveAllowed || kyc !== 'verified'}
+              title={!liveAllowed ? 'Réservé au plan Elite' : kyc !== 'verified' ? 'KYC requis' : ''}
+              className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface disabled:opacity-40">+ Réel (Alpaca)</button>
           </div>
         </div>
         {conns.length === 0 && <p className="text-muted">Aucune connexion. Ajoute un broker papier pour commencer sans risque.</p>}
