@@ -50,14 +50,15 @@ class Settings(BaseSettings):
     llm_enabled: bool = True
     # Modèles par rôle (overridables par env) — stratégie hybride Claude/Gemini.
     # NB : la série gemini-1.5 a été retirée de l'API v1beta ; on utilise la série 2.5 (GA).
-    # Stratégie hybride : Gemini 2.5-flash (rapide/pas cher) pour les commentaires d'agents répétés
-    # (fast/grounding) ; Claude pour la vision chartiste et le raisonnement (Sonnet 4.6) et l'arbitrage
-    # maître (Opus 4.8). Le failover bascule automatiquement vers Gemini si la clé Anthropic est absente
-    # (le fallback d'un modèle anthropic est llm_model_fast), donc tout reste fonctionnel sans clé Claude.
-    llm_model_master: str = "anthropic/claude-opus-4-8"
-    llm_model_reasoning: str = "anthropic/claude-sonnet-4-6"
+    # Tout sur Gemini 2.5-flash (rapide, fiable, GA). La clé Claude est prête dans .env : pour activer
+    # la stratégie hybride (Claude Sonnet sur vision/reasoning, Opus sur master) une fois le compte
+    # Anthropic crédité, remettre :
+    #   llm_model_vision/reasoning = "anthropic/claude-sonnet-4-6" ; llm_model_master = "anthropic/claude-opus-4-8"
+    # (le failover retombe sur Gemini automatiquement si Claude échoue).
+    llm_model_master: str = "gemini/gemini-2.5-flash"
+    llm_model_reasoning: str = "gemini/gemini-2.5-flash"
     llm_model_fast: str = "gemini/gemini-2.5-flash"
-    llm_model_vision: str = "anthropic/claude-sonnet-4-6"
+    llm_model_vision: str = "gemini/gemini-2.5-flash"
     llm_model_grounding: str = "gemini/gemini-2.5-flash"
     
     # LLM Budget Guards
