@@ -232,9 +232,30 @@ async def generate_for_user(
     if warn:
         card.risk_warning = warn if not card.risk_warning else f"{card.risk_warning} {warn}"
 
-    # Confirmation multi-timeframe (1h/4h/1j) + marqueur haute-conviction.
+    # Confirmation multi-timeframe (1h/4h/1j).
+    from app.models.signal import Direction
     from app.signal_engine import mtf
     card.mtf = await mtf.confirm(asset, card.direction)
+
+    # --- Gate MTF : on n'émet un BUY/SELL que si les unités de temps s'accordent (>=2/3). ---
+    # Sinon -> HOLD (pas de trade). Garantit que tout signal directionnel émis passe déjà le critère
+    # multi-timeframe = plus fiable, et évite les contre-tendances (ex. 1h BUY mais 4h/1j SELL).
+    if (
+        card.direction != Direction.HOLD
+        and card.mtf.get("total", 0) >= 2
+        and card.mtf.get("aligned", 0) < 2
+    ):
+        card.direction = Direction.HOLD
+        card.stop_loss = card.take_profit_1 = card.entry
+        card.take_profit_2 = card.take_profit_3 = None
+        card.risk_reward = 0.0
+        card.position_size = card.position_value = card.risk_amount = None
+        card.confidence = min(card.confidence, 40)
+        card.rationale = (
+            "⏸️ Signal non confirmé par le multi-timeframe (les unités de temps divergent) — pas de trade.\n"
+            + card.rationale
+        )
+
     adx = card.metrics.get("adx")
     card.high_conviction = bool(
         card.direction.value != "HOLD"

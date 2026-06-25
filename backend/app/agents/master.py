@@ -61,8 +61,13 @@ def decide(
     eff = _effective_weights(base, journal_multipliers, regime_bias)
 
     voting = [o for o in outputs if o.name != "risk"]
+    # Anti-dilution : seuls les agents qui ont un VRAI signal directionnel votent. Les agents neutres
+    # (ex. fundamental=0 en crypto, macro=0 sans données) s'abstiennent au lieu de tirer le score vers
+    # HOLD. Si tous sont neutres, on garde tout le monde (le HOLD est alors légitime).
+    active = [o for o in voting if abs(o.score) >= 0.05]
+    pool = active if active else voting
     num = den = 0.0
-    for o in voting:
+    for o in pool:
         w = eff.get(o.name, 0.1) * max(o.confidence, 0.05)
         num += w * o.score
         den += w
@@ -84,7 +89,7 @@ def decide(
     sign = 1 if combined > 0 else -1 if combined < 0 else 0
     agree_w = sum(
         eff.get(o.name, 0.1) * max(o.confidence, 0.05)
-        for o in voting
+        for o in pool
         if o.score != 0 and (o.score > 0) == (sign > 0)
     )
     agreement = (agree_w / den) if den and sign != 0 else 0.0
