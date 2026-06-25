@@ -6,7 +6,6 @@ import { Chart } from '@/components/Chart';
 import { SignalCard } from '@/components/SignalCard';
 import {
   api,
-  clearToken,
   openSignalStream,
   type HeatmapItem,
   type Me,
@@ -94,11 +93,6 @@ export default function DashboardPage() {
     }
   }
 
-  function logout() {
-    clearToken();
-    router.push('/login');
-  }
-
   return (
     <main className="mx-auto max-w-5xl p-6">
       <header className="mb-6 flex items-center justify-between">
@@ -111,44 +105,6 @@ export default function DashboardPage() {
               <span className={`ml-2 ${live ? 'text-buy' : 'text-muted'}`}>{live ? '● live' : '○ hors-ligne'}</span>
             </p>
           )}
-        </div>
-        <div className="flex gap-2">
-          <a href="/daily" className="rounded-lg border border-buy/40 bg-buy/10 px-3 py-1 text-sm text-buy hover:bg-buy/20">
-            ★ Trades du jour
-          </a>
-          <a href="/scanner" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
-            Scanner
-          </a>
-          <a href="/copilot" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
-            Copilot
-          </a>
-          <a href="/journal" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
-            Journal
-          </a>
-          <a href="/backtest" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
-            Backtest
-          </a>
-          <a href="/agents" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
-            Agents
-          </a>
-          <a href="/execution" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
-            Exécution
-          </a>
-          <a href="/copytrading" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
-            Copy
-          </a>
-          <a href="/marketplace" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
-            Marketplace
-          </a>
-          <a href="/plans" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
-            Plans
-          </a>
-          <a href="/settings" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
-            Paramètres
-          </a>
-          <button onClick={logout} className="ml-2 rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
-            Déconnexion
-          </button>
         </div>
       </header>
 
