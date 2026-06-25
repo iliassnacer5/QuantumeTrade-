@@ -10,7 +10,7 @@ def test_buy_levels_ordering():
     p = RiskParams(capital=10000, risk_per_trade_pct=1.0)
     out = compute_levels(Direction.BUY, entry=100.0, atr=2.0, p=p)
     assert out.stop_loss < 100 < out.take_profit_1 < out.take_profit_2 < out.take_profit_3
-    assert out.risk_reward == 1.0  # tp1=1.5*atr, sl=1.5*atr -> R/R = 1
+    assert out.risk_reward >= 1.5  # tp1=2.5*atr, sl=1.5*atr -> R/R ≈ 1.67 (>= seuil checklist)
 
 
 def test_sell_levels_inverted():

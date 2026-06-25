@@ -19,7 +19,8 @@
       "Bash(python -c \"import app.main; print\\('app import OK'\\)\")",
       "Bash(python -m pytest tests/test_phase5.py -q)",
       "Bash(python -c \"import app.main; print\\('import OK'\\)\")",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(python -m pytest tests/test_risk.py tests/test_phase2.py tests/test_signal_card.py -q)"
     ]
   }
 }

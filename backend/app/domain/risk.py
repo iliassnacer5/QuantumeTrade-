@@ -17,7 +17,9 @@ class RiskParams:
     capital: float
     risk_per_trade_pct: float = 1.0  # % du capital risqué par trade
     atr_sl_mult: float = 1.5  # SL = entrée -/+ atr_sl_mult * ATR
-    atr_tp_mults: tuple[float, float, float] = (1.5, 3.0, 5.0)  # TP1/2/3
+    # TP1 plus éloigné que le SL -> R/R sain (TP1 = 2.5*ATR / SL = 1.5*ATR ≈ 1:1.67).
+    # Un bon trade coupe vite les pertes et laisse courir les gains (R/R >= 1.5).
+    atr_tp_mults: tuple[float, float, float] = (2.5, 4.0, 6.0)  # TP1/2/3
 
 
 @dataclass
