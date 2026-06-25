@@ -111,6 +111,16 @@ async def scan(
     }
 
 
+@router.delete("")
+async def clear_signals(
+    user: User = Depends(current_user),
+    store: AppStore = Depends(store_dep),
+) -> dict:
+    """Vide l'historique des signaux du tenant (repartir propre)."""
+    deleted = store.signals.clear_for_tenant(user.tenant_id)
+    return {"deleted": deleted}
+
+
 @router.get("")
 async def list_signals(
     limit: int = 50,

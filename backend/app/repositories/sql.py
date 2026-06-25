@@ -201,6 +201,14 @@ class SqlSignalRepository:
             r = s.get(SignalORM, signal_id)
             return StoredSignal(id=r.id, tenant_id=r.tenant_id, payload=_signal_payload(r)) if r else None
 
+    def clear_for_tenant(self, tenant_id: str) -> int:
+        from sqlalchemy import delete as _delete
+
+        with self._sm() as s:
+            res = s.execute(_delete(SignalORM).where(SignalORM.tenant_id == tenant_id))
+            s.commit()
+            return res.rowcount or 0
+
 
 class SqlMarketRepository:
     """Persistance OHLCV (ingestion -> TimescaleDB en prod, table simple en test)."""

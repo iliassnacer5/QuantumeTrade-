@@ -85,6 +85,12 @@ class SignalRepository:
     def get(self, signal_id: str) -> StoredSignal | None:
         return self._signals.get(signal_id)
 
+    def clear_for_tenant(self, tenant_id: str) -> int:
+        ids = [sid for sid, s in self._signals.items() if s.tenant_id == tenant_id]
+        for sid in ids:
+            del self._signals[sid]
+        return len(ids)
+
 class BacktestRepository:
     def __init__(self) -> None:
         self._reports: dict[str, BacktestReport] = {}

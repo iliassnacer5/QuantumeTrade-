@@ -26,6 +26,7 @@ export default function DashboardPage() {
   const [error, setError] = useState('');
   const [live, setLive] = useState(false);
   const [selected, setSelected] = useState<Signal | null>(null);
+  const [showAll, setShowAll] = useState(false);
   const [pnl, setPnl] = useState<Portfolio | null>(null);
   const [risk, setRisk] = useState<RiskStatus | null>(null);
   const [heat, setHeat] = useState<HeatmapItem[]>([]);
@@ -92,6 +93,21 @@ export default function DashboardPage() {
       setLoading(false);
     }
   }
+
+  async function clearHistory() {
+    if (!confirm("Vider tout l'historique des signaux ? Cette action est irréversible.")) return;
+    try {
+      await api.clearSignals();
+      setSignals([]);
+      setSelected(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur');
+    }
+  }
+
+  // Déduplication : un seul signal (le plus récent) par actif. La liste arrive déjà triée par récence.
+  const uniqueSignals = Array.from(new Map(signals.map((s) => [s.asset, s])).values());
+  const visibleSignals = showAll ? uniqueSignals : uniqueSignals.slice(0, 6);
 
   return (
     <main className="mx-auto max-w-5xl p-6">
@@ -203,20 +219,37 @@ export default function DashboardPage() {
       {signals.length === 0 ? (
         <p className="text-center text-muted">Aucun signal pour le moment. Générez votre premier signal.</p>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {signals.map((s, i) => (
-            <button
-              key={s.id ?? i}
-              onClick={() => {
-                setSelected(s);
-                setAsset(s.asset);
-              }}
-              className={`text-left transition ${selected?.id === s.id ? 'ring-2 ring-accent rounded-xl' : ''}`}
-            >
-              <SignalCard s={s} />
+        <>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-white">
+              Signaux récents <span className="text-muted">({uniqueSignals.length} actif{uniqueSignals.length > 1 ? 's' : ''})</span>
+            </h2>
+            <button onClick={clearHistory} className="rounded-lg border border-sell/40 px-3 py-1 text-xs text-sell hover:bg-sell/10">
+              Vider l&apos;historique
             </button>
-          ))}
-        </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {visibleSignals.map((s, i) => (
+              <button
+                key={s.id ?? i}
+                onClick={() => {
+                  setSelected(s);
+                  setAsset(s.asset);
+                }}
+                className={`text-left transition ${selected?.id === s.id ? 'ring-2 ring-accent rounded-xl' : ''}`}
+              >
+                <SignalCard s={s} />
+              </button>
+            ))}
+          </div>
+          {uniqueSignals.length > 6 && (
+            <div className="mt-4 text-center">
+              <button onClick={() => setShowAll((v) => !v)} className="rounded-lg border border-border px-4 py-1.5 text-sm text-muted hover:bg-surface hover:text-white">
+                {showAll ? 'Réduire' : `Voir tout (${uniqueSignals.length})`}
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       <p className="mt-8 text-center text-[11px] text-muted">

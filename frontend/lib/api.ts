@@ -208,6 +208,7 @@ export const api = {
   onboard: (risk_profile: string, capital: number, watchlist: string[]) =>
     req<Me>('/api/onboarding', { method: 'POST', body: JSON.stringify({ risk_profile, capital, watchlist }) }),
   listSignals: () => req<Signal[]>('/api/signals'),
+  clearSignals: () => req<{ deleted: number }>('/api/signals', { method: 'DELETE' }),
   ohlcv: (asset: string, timeframe: string) =>
     req<Candle[]>(`/api/market/ohlcv?asset=${encodeURIComponent(asset)}&timeframe=${timeframe}`),
   symbols: (q?: string, asset_class?: string) => {
