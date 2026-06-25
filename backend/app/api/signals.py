@@ -97,12 +97,22 @@ async def scan(
     timeframe: str = "1h",
     limit: int = 20,
     high_conviction_only: bool = False,
+    session: str | None = None,
     _user: User = Depends(current_user),
 ) -> dict:
-    """Scanner de marché : classe les symboles par conviction (flag haute-conviction ADX>25)."""
+    """Scanner de marché : classe les symboles par conviction (flag haute-conviction ADX>25).
+
+    `session` (asian|london|newyork) restreint l'univers aux paires liquides de cette session.
+    """
+    universe = None
+    if session:
+        from app.data import sessions as sessions_mod
+        universe = sessions_mod.session_universe(session)
+        if asset_class:
+            universe = [u for u in universe if u["asset_class"] == asset_class]
     results = await signal_service.scan_market(
-        asset_class=asset_class, timeframe=timeframe, limit=min(limit, 30),
-        high_conviction_only=high_conviction_only,
+        asset_class=asset_class, timeframe=timeframe, limit=min(limit, 40),
+        high_conviction_only=high_conviction_only, symbols=universe,
     )
     return {
         "count": len(results),

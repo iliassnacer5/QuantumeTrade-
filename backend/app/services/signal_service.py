@@ -143,18 +143,21 @@ async def scan_market(
     timeframe: str = "1h",
     limit: int = 20,
     high_conviction_only: bool = False,
+    symbols: list[dict] | None = None,
 ) -> list[dict]:
     """Scanne un marché et classe les symboles par conviction (rapide : analyse technique).
 
     Retourne TOUS les symboles analysés, triés par score de conviction, avec un flag
     `high_conviction` (ADX>25 + tendance franche). Le multi-timeframe complet et les news sont
     calculés à la demande quand l'utilisateur ouvre un symbole (« Analyser »).
+
+    `symbols` : univers explicite (ex. paires d'une session mondiale) ; sinon le catalogue.
     """
     from app.data import symbols as symbols_catalog
     from app.domain import ta
     from app.models.signal import Direction
 
-    universe = symbols_catalog.search(asset_class=asset_class, limit=limit)
+    universe = symbols[:limit] if symbols else symbols_catalog.search(asset_class=asset_class, limit=limit)
     results: list[dict] = []
     for item in universe:
         sym = item["symbol"]

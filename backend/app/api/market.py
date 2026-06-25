@@ -57,6 +57,14 @@ async def heatmap(
     return await get_heatmap(symbols)
 
 
+@router.get("/sessions")
+async def sessions(_user: User = Depends(current_user)) -> dict:
+    """Sessions de trading mondiales (Asie/Londres/New York) + celle(s) actuellement ouverte(s)."""
+    from app.data import sessions as sessions_mod
+
+    return sessions_mod.overview()
+
+
 @router.get("/symbols")
 async def list_symbols(
     q: str | None = Query(default=None, description="Filtre texte (ex. BTC, EUR, AAPL)"),

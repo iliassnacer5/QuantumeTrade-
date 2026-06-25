@@ -237,15 +237,18 @@ export const api = {
         }),
       },
     ),
-  scan: (asset_class?: string, timeframe = '1h', limit = 20, high_conviction_only = false) =>
+  scan: (asset_class?: string, timeframe = '1h', limit = 20, high_conviction_only = false, session?: string) =>
     req<{ count: number; high_conviction: number; results: any[] }>(
       `/api/signals/scan?${new URLSearchParams({
         ...(asset_class ? { asset_class } : {}),
+        ...(session ? { session } : {}),
         timeframe,
         limit: String(limit),
         high_conviction_only: String(high_conviction_only),
       })}`,
     ),
+  sessions: () =>
+    req<{ utc_time: string; active: string[]; sessions: { id: string; label: string; window_utc: string; open: boolean; symbol_count: number }[] }>('/api/market/sessions'),
   generate: (asset: string, timeframe: string, notify = false) =>
     req<Signal>('/api/signals/generate', { method: 'POST', body: JSON.stringify({ asset, timeframe, notify }) }),
   plans: () => req<{ id: string; price: number; features: string[] }[]>('/api/billing/plans'),

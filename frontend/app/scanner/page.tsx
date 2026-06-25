@@ -31,8 +31,15 @@ export default function ScannerPage() {
   const [signal, setSignal] = useState<Signal | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<{ id: string; label: string; window_utc: string; open: boolean; symbol_count: number }[]>([]);
+  const [utcTime, setUtcTime] = useState('');
+  const [session, setSession] = useState<string>('');
 
   const interval = useMemo(() => TIMEFRAMES.find((t) => t.tf === tf)?.interval ?? '1h', [tf]);
+
+  useEffect(() => {
+    api.sessions().then((d) => { setSessions(d.sessions); setUtcTime(d.utc_time); }).catch(() => {});
+  }, []);
 
   // Charge la liste des symboles selon la classe.
   useEffect(() => {
@@ -49,7 +56,7 @@ export default function ScannerPage() {
     setScanning(true);
     setError(null);
     try {
-      const r = await api.scan(cls || undefined, interval, 24, hcOnly);
+      const r = await api.scan(cls || undefined, interval, 30, hcOnly, session || undefined);
       setResults(r.results);
       setScanned(true);
     } catch (e: any) {
@@ -82,6 +89,31 @@ export default function ScannerPage() {
         </div>
         <a href="/dashboard" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">← Dashboard</a>
       </header>
+
+      {/* Sessions mondiales */}
+      {sessions.length > 0 && (
+        <section className="rounded-xl border border-border bg-surface p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-sm font-semibold text-white">Sessions mondiales</span>
+            <span className="text-xs text-muted">{utcTime}</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setSession('')}
+              className={`rounded-lg border px-3 py-1.5 text-sm ${session === '' ? 'border-accent bg-accent/10 text-white' : 'border-border text-muted hover:bg-background'}`}>
+              Tous marchés
+            </button>
+            {sessions.map((s) => (
+              <button key={s.id} onClick={() => setSession(s.id)}
+                className={`rounded-lg border px-3 py-1.5 text-sm ${session === s.id ? 'border-accent bg-accent/10 text-white' : 'border-border text-muted hover:bg-background'}`}>
+                <span className={`mr-1.5 inline-block h-2 w-2 rounded-full ${s.open ? 'bg-buy' : 'bg-muted/40'}`} />
+                {s.label} <span className="text-[10px] text-muted">({s.window_utc})</span>
+                {s.open && <span className="ml-1 text-[10px] text-buy">● ouverte</span>}
+              </button>
+            ))}
+          </div>
+          {session && <p className="mt-2 text-xs text-muted">Le scan ne portera que sur les paires liquides de cette session.</p>}
+        </section>
+      )}
 
       {/* Sélecteurs */}
       <section className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-surface p-4">
