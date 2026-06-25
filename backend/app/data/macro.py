@@ -15,17 +15,28 @@ async def fetch_macro_data() -> dict:
     """
     s = get_settings()
     api_key = getattr(s, "fred_api_key", "") or ""
-    
-    macro = {
-        "rate_trend": "flat",
-        "inflation": None,
-        "vix": None
-    }
-    
-    if not api_key:
-        logger.debug("Pas de clé FRED configurée, utilisation des données macro par défaut.")
-        return macro
-        
+
+    macro = {"rate_trend": "flat", "inflation": None, "vix": None}
+
+    if api_key:
+        await _fetch_fred(macro, api_key)
+
+    # Repli VIX via Yahoo (gratuit, sans clé) — indicateur clé du régime risk-on/risk-off.
+    if macro["vix"] is None:
+        try:
+            from app.data import yahoo
+
+            rows = await yahoo.fetch_ohlcv("^VIX", "1d", limit=2)
+            if rows:
+                macro["vix"] = round(rows[-1]["close"], 2)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("VIX Yahoo indisponible (%s)", exc)
+
+    return macro
+
+
+async def _fetch_fred(macro: dict, api_key: str) -> None:
+    """Remplit taux/inflation/VIX depuis FRED (clé requise)."""
     try:
         import httpx
         
@@ -61,7 +72,5 @@ async def fetch_macro_data() -> dict:
             if vix_data and vix_data[0]["value"] != ".":
                 macro["vix"] = float(vix_data[0]["value"])
 
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         logger.warning("Récupération données FRED échouée (%s)", exc)
-        
-    return macro

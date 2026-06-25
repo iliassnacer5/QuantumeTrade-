@@ -28,10 +28,15 @@ def assess_regime(macro: dict) -> tuple[str, float]:
 
     vix = macro.get("vix")
     if vix is not None:
+        # Régime risk-on/off gradué selon le VIX (volatilité implicite).
         if vix > 30:
-            score -= 0.4
+            score -= 0.4   # panique -> risk-off fort
+        elif vix > 20:
+            score -= 0.15  # nervosité -> risk-off léger
         elif vix < 15:
-            score += 0.3
+            score += 0.3   # complaisance -> risk-on fort
+        elif vix < 18:
+            score += 0.1   # calme -> risk-on léger
 
     score = max(-1.0, min(1.0, score))
     regime = "risk-on" if score > 0.2 else "risk-off" if score < -0.2 else "neutre"
