@@ -211,11 +211,12 @@ export const api = {
   clearSignals: () => req<{ deleted: number }>('/api/signals', { method: 'DELETE' }),
   ohlcv: (asset: string, timeframe: string) =>
     req<Candle[]>(`/api/market/ohlcv?asset=${encodeURIComponent(asset)}&timeframe=${timeframe}`),
-  symbols: (q?: string, asset_class?: string) => {
+  symbols: (q?: string, asset_class?: string, session?: string) => {
     const p = new URLSearchParams();
     if (q) p.set('q', q);
     if (asset_class) p.set('asset_class', asset_class);
-    return req<{ results: { symbol: string; asset_class: string; label: string }[]; classes: string[] }>(`/api/market/symbols?${p}`);
+    if (session) p.set('session', session);
+    return req<{ results: { symbol: string; asset_class: string; label?: string }[]; classes: string[] }>(`/api/market/symbols?${p}`);
   },
   dailyPicks: (refresh = false) =>
     req<{ date: string; picks: any[]; generated_at: string }>(`/api/signals/daily-picks${refresh ? '?refresh=true' : ''}`),

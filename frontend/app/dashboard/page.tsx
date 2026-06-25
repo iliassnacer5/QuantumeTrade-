@@ -31,10 +31,20 @@ export default function DashboardPage() {
   const [risk, setRisk] = useState<RiskStatus | null>(null);
   const [heat, setHeat] = useState<HeatmapItem[]>([]);
   const [heatMix, setHeatMix] = useState(false);
-  const [symbols, setSymbols] = useState<string[]>([]);
+  const [symbols, setSymbols] = useState<{ symbol: string; asset_class: string }[]>([]);
+  const [mktClass, setMktClass] = useState('');
+  const [session, setSession] = useState('');
+  const [sessions, setSessions] = useState<{ id: string; label: string; window_utc: string; open: boolean }[]>([]);
+
+  // Catalogue de symboles filtré par marché / session.
+  useEffect(() => {
+    api.symbols(undefined, mktClass || undefined, session || undefined)
+      .then((d) => setSymbols(d.results))
+      .catch(() => {});
+  }, [mktClass, session]);
 
   useEffect(() => {
-    api.symbols().then((d) => setSymbols(d.results.map((r) => r.symbol))).catch(() => {});
+    api.sessions().then((d) => setSessions(d.sessions)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -172,44 +182,74 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <section className="mb-6 flex flex-wrap items-end gap-3 rounded-xl border border-border bg-surface p-4">
-        <div>
-          <label className="mb-1 block text-xs text-muted">Actif (crypto · forex · actions)</label>
-          <input
-            list="symbol-catalog"
-            value={asset}
-            onChange={(e) => setAsset(e.target.value.toUpperCase())}
-            placeholder="BTC/USDT, EUR/USD, AAPL…"
-            className="rounded-lg border border-border bg-background px-3 py-2 font-mono outline-none focus:border-accent"
-          />
-          <datalist id="symbol-catalog">
-            {symbols.map((s) => (
-              <option key={s} value={s} />
-            ))}
-          </datalist>
+      <section className="mb-6 space-y-3 rounded-xl border border-border bg-surface p-4">
+        {/* Marchés + sessions */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted">Marché :</span>
+          {[
+            { id: '', label: 'Tous' },
+            { id: 'crypto', label: 'Crypto' },
+            { id: 'forex', label: 'Forex' },
+            { id: 'stock', label: 'Actions' },
+          ].map((c) => (
+            <button key={c.id} onClick={() => setMktClass(c.id)}
+              className={`rounded-lg border px-2.5 py-1 text-xs ${mktClass === c.id ? 'border-accent bg-accent/10 text-white' : 'border-border text-muted hover:bg-background'}`}>
+              {c.label}
+            </button>
+          ))}
+          <span className="ml-3 text-xs text-muted">Session :</span>
+          <button onClick={() => setSession('')}
+            className={`rounded-lg border px-2.5 py-1 text-xs ${session === '' ? 'border-accent bg-accent/10 text-white' : 'border-border text-muted hover:bg-background'}`}>
+            Toutes
+          </button>
+          {sessions.map((s) => (
+            <button key={s.id} onClick={() => setSession(s.id)}
+              className={`rounded-lg border px-2.5 py-1 text-xs ${session === s.id ? 'border-accent bg-accent/10 text-white' : 'border-border text-muted hover:bg-background'}`}>
+              <span className={`mr-1 inline-block h-1.5 w-1.5 rounded-full ${s.open ? 'bg-buy' : 'bg-muted/40'}`} />
+              {s.label.split(' ')[0]}
+            </button>
+          ))}
         </div>
-        <div>
-          <label className="mb-1 block text-xs text-muted">Timeframe</label>
-          <select
-            value={timeframe}
-            onChange={(e) => setTimeframe(e.target.value)}
-            className="rounded-lg border border-border bg-background px-3 py-2 outline-none focus:border-accent"
-          >
-            {TIMEFRAMES.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
+
+        {/* Paires cliquables -> charge le chart */}
+        <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
+          {symbols.map((s) => (
+            <button key={s.symbol} onClick={() => { setAsset(s.symbol); setSelected(null); }}
+              className={`rounded px-2 py-1 font-mono text-[11px] ${asset === s.symbol ? 'bg-accent text-background' : 'bg-background text-muted hover:bg-border hover:text-white'}`}>
+              {s.symbol}
+            </button>
+          ))}
+          {symbols.length === 0 && <span className="text-xs text-muted">Aucun symbole.</span>}
         </div>
-        <button
-          onClick={generate}
-          disabled={loading}
-          className="rounded-lg bg-accent px-5 py-2 font-semibold text-background hover:opacity-90 disabled:opacity-50"
-        >
-          {loading ? 'Analyse...' : 'Générer un signal'}
-        </button>
-        {error && <p className="text-sm text-sell">{error}</p>}
+
+        {/* Saisie libre + timeframe + génération */}
+        <div className="flex flex-wrap items-end gap-3 border-t border-border/50 pt-3">
+          <div>
+            <label className="mb-1 block text-xs text-muted">Actif sélectionné</label>
+            <input
+              list="symbol-catalog"
+              value={asset}
+              onChange={(e) => setAsset(e.target.value.toUpperCase())}
+              placeholder="BTC/USDT…"
+              className="rounded-lg border border-border bg-background px-3 py-2 font-mono outline-none focus:border-accent"
+            />
+            <datalist id="symbol-catalog">
+              {symbols.map((s) => <option key={s.symbol} value={s.symbol} />)}
+            </datalist>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-muted">Timeframe</label>
+            <select value={timeframe} onChange={(e) => setTimeframe(e.target.value)}
+              className="rounded-lg border border-border bg-background px-3 py-2 outline-none focus:border-accent">
+              {TIMEFRAMES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <button onClick={generate} disabled={loading}
+            className="rounded-lg bg-accent px-5 py-2 font-semibold text-background hover:opacity-90 disabled:opacity-50">
+            {loading ? 'Analyse...' : 'Générer un signal'}
+          </button>
+          {error && <p className="text-sm text-sell">{error}</p>}
+        </div>
       </section>
 
       <section className="mb-6">

@@ -69,10 +69,17 @@ async def sessions(_user: User = Depends(current_user)) -> dict:
 async def list_symbols(
     q: str | None = Query(default=None, description="Filtre texte (ex. BTC, EUR, AAPL)"),
     asset_class: str | None = Query(default=None, description="crypto | forex | stock"),
+    session: str | None = Query(default=None, description="asian | london | newyork"),
     _user: User = Depends(current_user),
 ) -> dict:
-    """Catalogue multi-marchés (crypto / forex / actions) + recherche."""
-    return {
-        "results": symbols_catalog.search(q, asset_class, limit=100),
-        "classes": list(symbols_catalog.catalog().keys()),
-    }
+    """Catalogue multi-marchés (crypto / forex / actions) + recherche, filtrable par session."""
+    if session:
+        from app.data import sessions as sessions_mod
+        results = sessions_mod.session_universe(session)
+        if asset_class:
+            results = [r for r in results if r["asset_class"] == asset_class]
+        if q:
+            results = [r for r in results if q.strip().upper() in r["symbol"].upper()]
+    else:
+        results = symbols_catalog.search(q, asset_class, limit=100)
+    return {"results": results, "classes": list(symbols_catalog.catalog().keys())}
