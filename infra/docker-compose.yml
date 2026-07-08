@@ -54,8 +54,12 @@ services:
   backend:
     build:
       context: ../backend
+    # `.env` OPTIONNEL : la stack démarre même sans lui (défauts + dégradation gracieuse -> données
+    # synthétiques tant que les clés API ne sont pas fournies). Copier ../.env.example -> ../.env
+    # puis y mettre ses clés pour des données réelles.
     env_file:
-      - ../.env
+      - path: ../.env
+        required: false
     environment:
       # Active la persistance Postgres (au lieu de l'in-memory).
       USE_IN_MEMORY_DB: "false"
