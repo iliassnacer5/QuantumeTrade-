@@ -32,6 +32,19 @@ async def list_entries(
     return journal_service.recent_entries(store, user.tenant_id, limit=200)
 
 
+@router.delete("")
+async def clear_journal(
+    user: User = Depends(require_feature("journal")),
+    store: AppStore = Depends(store_dep),
+) -> dict:
+    """Réinitialise le Journal (Phase A du plan maître) : repartir d'un thermomètre propre.
+
+    À utiliser après des périodes de test — l'apprentissage et le track record ne doivent mesurer
+    que des trades représentatifs de ta vraie configuration."""
+    removed = store.journal.clear_for_tenant(user.tenant_id)
+    return {"cleared": removed}
+
+
 @router.get("/insights")
 async def insights(
     user: User = Depends(require_feature("journal")),

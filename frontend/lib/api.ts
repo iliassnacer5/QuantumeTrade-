@@ -32,6 +32,15 @@ export type SignalsTrackRecord = {
   avoided: { blocked: number; would_have_lost: number; would_have_won: number; undecided: number };
 };
 
+export type EdgeRow = {
+  strategy: string; strategy_name: string; symbol: string; market: string; timeframe: string;
+  alpha: number; pf: number; win: number; trades: number; verdict?: string;
+  data_real: boolean; status: 'green' | 'yellow' | 'red'; green_streak?: number;
+};
+export type EdgeMap = {
+  generated_at?: string; rows: EdgeRow[]; greens: number; yellows: number; reds: number; note: string;
+};
+
 export type MarketRegime = {
   utc_time: string; sessions: { id: string; label: string; window_utc: string; open: boolean }[];
   open_sessions: string[]; vix: number | null; regime: 'on' | 'off' | 'neutral'; regime_label: string;
@@ -283,6 +292,14 @@ export const api = {
   signalMode: () => req<{ mode: string }>('/api/signals/mode'),
   setSignalMode: (mode: string) => req<{ mode: string }>(`/api/signals/mode?mode=${mode}`, { method: 'POST' }),
   marketRegime: () => req<MarketRegime>('/api/market/regime'),
+  edgeMap: () => req<EdgeMap>('/api/backtest/edge-map'),
+  runEdgeSweep: (timeframe?: string, market?: string) => {
+    const p = new URLSearchParams();
+    if (timeframe) p.set('timeframe', timeframe);
+    if (market) p.set('market', market);
+    return req<EdgeMap>(`/api/backtest/edge-map/run?${p}`, { method: 'POST' });
+  },
+  clearJournal: () => req<{ cleared: number }>('/api/journal', { method: 'DELETE' }),
   clearSignals: () => req<{ deleted: number }>('/api/signals', { method: 'DELETE' }),
   ohlcv: (asset: string, timeframe: string) =>
     req<Candle[]>(`/api/market/ohlcv?asset=${encodeURIComponent(asset)}&timeframe=${timeframe}`),

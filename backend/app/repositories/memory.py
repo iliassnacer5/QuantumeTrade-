@@ -129,6 +129,12 @@ class JournalRepository:
             entry["pnl"] = pnl
         return entry
 
+    def clear_for_tenant(self, tenant_id: str) -> int:
+        """Repart d'un journal propre (Phase A : le thermomètre doit être fiable)."""
+        n = len(self._entries.get(tenant_id, []))
+        self._entries[tenant_id] = []
+        return n
+
 
 class RecordRepository:
     """Document store générique en mémoire (Phase 4). Clé = (kind, id)."""

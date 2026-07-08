@@ -6,6 +6,7 @@ import { clearToken } from '@/lib/api';
 
 const LINKS: { href: string; label: string; accent?: boolean }[] = [
   { href: '/today', label: '☀️ Ma journée', accent: true },
+  { href: '/edge', label: '🗺️ Edge' },
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/daily', label: '★ Trades du jour', accent: true },
   { href: '/scanner', label: 'Scanner' },

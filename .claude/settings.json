@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"from app.main import app; print\\('import OK'\\)\")",
+      "Bash(python -m pytest tests/test_edge_map.py -q)",
+      "Bash(npx tsc *)",
+      "Bash(git add *)",
+      "Bash(git commit -q -m ' *)",
+      "Bash(git push *)"
+    ]
+  }
+}

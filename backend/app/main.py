@@ -92,6 +92,12 @@ async def lifespan(_app: FastAPI):
 
         alerts_task = asyncio.create_task(strategy_alerts_loop())
 
+    edge_task = None
+    if get_settings().edge_sweep_enabled:
+        from app.services.scheduler import edge_sweep_loop
+
+        edge_task = asyncio.create_task(edge_sweep_loop())
+
     logging.getLogger(__name__).info(
         "Démarrage OK (in_memory=%s, redis=%s, digest=%s)",
         get_settings().use_in_memory_db,
@@ -107,6 +113,8 @@ async def lifespan(_app: FastAPI):
         learning_task.cancel()
     if alerts_task:
         alerts_task.cancel()
+    if edge_task:
+        edge_task.cancel()
     if get_settings().live_ingestion_enabled:
         from app.realtime import market_stream
 

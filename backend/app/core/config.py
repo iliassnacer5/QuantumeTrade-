@@ -51,6 +51,12 @@ class Settings(BaseSettings):
     # Alertes : la stratégie active déclenche une notification quand elle donne un signal.
     strategy_alerts_enabled: bool = True
     strategy_alerts_interval: int = 600   # secondes
+    # Carte de l'edge (plan maître, Phase B) : sweep systématique stratégies × marchés × TF.
+    edge_sweep_enabled: bool = True
+    edge_sweep_interval_hours: int = 24
+    edge_min_green_streak: int = 1      # nb de sweeps verts consécutifs requis pour l'auto-trade
+    auto_trade_green_only: bool = True  # l'auto-trade papier ne prend que les combos verts
+    strategy_alerts_timeframe: str = "4h"  # TF des alertes/auto-trade (4h = meilleur combo mesuré)
     # Agents experts par marché + filtre événementiel (Phase 1).
     expert_agents_enabled: bool = True
     event_blackout_enabled: bool = True

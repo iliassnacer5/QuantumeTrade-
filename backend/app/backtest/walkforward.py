@@ -33,10 +33,13 @@ def _cap_pf(pf: float) -> float:
 async def walk_forward(
     symbol: str, timeframe: str = "1h", folds: int = 4, initial_capital: float = 10_000.0,
     strategy_id: str | None = None, exit_config: dict | None = None,
+    preloaded: tuple[list[Candle], bool] | None = None,
 ) -> dict:
     """Backteste `symbol` sur `folds` segments temporels successifs et juge la cohérence.
 
-    Si `strategy_id` est fourni, valide cette stratégie classique ; sinon le moteur multi-agents."""
+    Si `strategy_id` est fourni, valide cette stratégie classique ; sinon le moteur multi-agents.
+    `preloaded=(candles, data_real)` : réutilise des bougies déjà chargées — indispensable pour le
+    sweep de la carte de l'edge (1 fetch par symbole×TF au lieu d'un par stratégie)."""
     strategy = None
     if strategy_id:
         from app.strategies import get_strategy
@@ -44,15 +47,19 @@ async def walk_forward(
         if s is None:
             raise ValueError(f"stratégie inconnue : {strategy_id}")
         strategy = s.fn
-    rows = await get_ohlcv(symbol, interval=timeframe, limit=1000)
-    data_real = len(rows) >= 100
-    if data_real:
-        candles = [
-            Candle(r["open"], r["high"], r["low"], r["close"], r.get("volume", 0.0),
-                   timestamp=datetime.fromtimestamp(r["time"], UTC))
-            for r in rows
-        ]
+    if preloaded is not None:
+        candles, data_real = preloaded
     else:
+        rows = await get_ohlcv(symbol, interval=timeframe, limit=1000)
+        data_real = len(rows) >= 100
+        candles = []
+        if data_real:
+            candles = [
+                Candle(r["open"], r["high"], r["low"], r["close"], r.get("volume", 0.0),
+                       timestamp=datetime.fromtimestamp(r["time"], UTC))
+                for r in rows
+            ]
+    if not candles:
         # Données indisponibles -> repli synthétique, signalé honnêtement.
         from datetime import timedelta
 

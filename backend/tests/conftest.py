@@ -18,6 +18,8 @@ def _test_env():
     settings.paper_portfolio_guard = False  # tests déterministes (gros lots autorisés)
     settings.expert_agents_enabled = False  # path générique par défaut (testé séparément avec mocks)
     settings.event_blackout_enabled = False  # pas d'appel calendrier réseau en test
+    settings.edge_sweep_enabled = False      # pas de sweep de fond en test (testé séparément)
+    settings.auto_trade_green_only = False   # les tests d'auto-trade n'exigent pas la carte de l'edge
     settings.block_synthetic_orders = False  # tests déterministes (pas de dépendance réseau)
     reset_store()
     yield

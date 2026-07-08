@@ -46,7 +46,11 @@ async def check_strategy_alerts(store) -> int:
 
 
 async def _check_symbol(store, user, strat, symbol: str) -> bool:
-    candles = await markets.load_candles(symbol, interval="1h", limit=200)
+    from app.core.config import get_settings
+
+    # Timeframe configurable — défaut 4h : le seul combo à alpha positif mesuré (cf. PLAN_MAITRE).
+    tf = get_settings().strategy_alerts_timeframe
+    candles = await markets.load_candles(symbol, interval=tf, limit=200)
     # On n'alerte que sur des données réelles (jamais sur du synthétique).
     if not markets.is_real(symbol):
         return False
@@ -76,7 +80,18 @@ async def _check_symbol(store, user, strat, symbol: str) -> bool:
     # FORWARD TEST AUTO (opt-in) : ouvre le trade PAPIER automatiquement (risque 1%, SL/TP inclus).
     # C'est le juge final de l'edge : des semaines de trades réels simulés, sans intervention.
     if (store.records.get("auto_trade", user.tenant_id) or {}).get("enabled"):
-        await _auto_paper_trade(store, user, symbol, new_dir, levels)
+        from app.core.config import get_settings
+        from app.services import edge_map_service
+
+        s = get_settings()
+        # Règle d'or (plan maître) : on n'auto-trade QUE les combos verts de la carte de l'edge
+        # (alpha>0 + PF>=1,2 out-of-sample). Ailleurs : alerte seulement, pas de trade.
+        if s.auto_trade_green_only and not edge_map_service.is_combo_green(
+            store, strat.id, symbol, min_streak=s.edge_min_green_streak
+        ):
+            logger.info("Auto-trade ignoré (%s/%s pas vert sur la carte de l'edge)", strat.id, symbol)
+        else:
+            await _auto_paper_trade(store, user, symbol, new_dir, levels)
     return True
 
 

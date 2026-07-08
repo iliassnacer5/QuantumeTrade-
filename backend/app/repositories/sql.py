@@ -432,6 +432,17 @@ class SqlJournalRepository:
             s.commit()
             return self._to_dict(r)
 
+    def clear_for_tenant(self, tenant_id: str) -> int:
+        """Repart d'un journal propre (Phase A : le thermomètre doit être fiable)."""
+        from sqlalchemy import delete as _delete
+
+        from app.models.db import JournalEntryORM
+
+        with self._sm() as s:
+            res = s.execute(_delete(JournalEntryORM).where(JournalEntryORM.tenant_id == tenant_id))
+            s.commit()
+            return res.rowcount or 0
+
 
 class SqlRecordRepository:
     """Document store générique persistant (Phase 4). Clé = (kind, id)."""

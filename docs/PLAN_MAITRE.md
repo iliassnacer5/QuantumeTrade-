@@ -65,22 +65,23 @@ plan : industrialiser la découverte d'edge et ne trader que là où il est prou
 
 ## 2. LE PLAN A→Z (7 phases, ordonnées)
 
-### PHASE A — Hygiène de mesure (½ jour, à faire EN PREMIER)
+### PHASE A — Hygiène de mesure — ✅ OUTILLÉE (reste 3 clics côté utilisateur)
 Le thermomètre doit être propre avant de soigner.
-- [ ] Réinitialiser Portefeuille + Journal (résidus de tests : 22 % win non représentatif).
-- [ ] Config de référence : mode **équilibré**, stratégie **mtf_ema**, timeframe **4h**, tp_only (déjà défaut).
-- [ ] Activer 🤖 Trading auto papier → le forward test devient la source de vérité.
+- [x] Outillage : `DELETE /api/journal` (reset journal) + reset Portefeuille existant.
+- [ ] **À toi (2 min)** : 💰 Portefeuille → Réinitialiser ; Journal → reset ; Stratégies → choisir
+      `mtf_ema` + activer 🤖 Trading auto papier ; Dashboard → mode ⚖️ Équilibré.
+- [x] Alertes/auto-trade alignés sur le **4h** (le timeframe validé) — configurable.
 - **Critère de sortie** : baseline propre qui accumule des trades réels simulés 24/7.
 
-### PHASE B — La CARTE DE L'EDGE (2-3 jours de dev, le cœur du plan)
+### PHASE B — La CARTE DE L'EDGE — ✅ IMPLÉMENTÉE (juil. 2026)
 Arrêter de chercher l'edge à la main : le systématiser.
-- [ ] **Sweep nocturne** (boucle scheduler) : walk-forward de {8 stratégies + moteur agents} ×
-      {15-20 symboles des 4 marchés} × {4h, 1d} → stocker les résultats (PF, alpha, verdict, folds).
-- [ ] **Page « Carte de l'edge »** : matrice verte/rouge des combos, triée par alpha OOS ; historique
-      pour voir la STABILITÉ d'un combo dans le temps (un edge qui clignote n'est pas un edge).
-- [ ] **Règle d'or automatisée** : l'auto-trading papier ne prend QUE les combos verts (alpha>0, PF≥1,2,
-      ≥2 sweeps consécutifs) ; tout le reste = observation.
-- **Critère de sortie** : liste vivante et auto-mise-à-jour des combos exploitables (même si elle est vide — c'est une information).
+- [x] **Sweep nocturne** (`edge_sweep_loop`, 24 h, 1er passage ~10 min après boot) : walk-forward de
+      8 stratégies × 18 symboles (4 marchés) × {4h, 1d}, bougies chargées 1 fois par symbole×TF.
+- [x] **Page 🗺️ /edge** : matrice 🟢/🟡/🔴 par marché, tri par alpha, filtre par statut, colonne
+      **Stabilité** (sweeps verts consécutifs), bouton « Relancer le sweep ».
+- [x] **Règle d'or automatisée** : l'auto-trading papier ne prend QUE les combos 🟢
+      (`auto_trade_green_only`, streak minimal configurable `edge_min_green_streak`).
+- **Critère de sortie** : liste vivante et auto-mise-à-jour des combos exploitables. ✅
 
 ### PHASE C — DONNÉES À AVANTAGE (1 semaine, dépend du VPS)
 Les indicateurs RSI/MACD sont dans tous les manuels : l'edge durable vient de données moins exploitées.

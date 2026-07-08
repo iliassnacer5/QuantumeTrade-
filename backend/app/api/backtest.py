@@ -122,6 +122,40 @@ async def exit_ab_test(
             "note": f"Meilleure config sorties : {best['config']} (alpha {best['avg_alpha']}%, PF {best['avg_pf']})" if best else ""}
 
 
+@router.get("/edge-map")
+async def edge_map(
+    user: User = Depends(current_user),
+    store: AppStore = Depends(store_dep),
+) -> dict:
+    """La CARTE DE L'EDGE : où (stratégie × symbole × TF) y a-t-il un edge prouvé out-of-sample ?
+
+    🟢 alpha>0 + PF≥1,2 (exploitable) · 🟡 alpha>0 · 🔴 pas d'edge. Mise à jour par sweep nocturne."""
+    from app.services import edge_map_service
+
+    latest = edge_map_service.get_edge_map(store)
+    if latest is None:
+        return {"rows": [], "greens": 0, "yellows": 0, "reds": 0,
+                "note": "Premier sweep pas encore exécuté (auto ~10 min après le démarrage, ou lance-le manuellement)."}
+    return latest
+
+
+@router.post("/edge-map/run")
+async def edge_map_run(
+    timeframe: str | None = None,
+    market: str | None = None,
+    _user: User = Depends(require_feature("backtesting")),
+    store: AppStore = Depends(store_dep),
+) -> dict:
+    """Lance le sweep manuellement (peut prendre 1-3 min). Filtres optionnels : timeframe, market."""
+    from app.services import edge_map_service
+
+    return await edge_map_service.run_edge_sweep(
+        store,
+        timeframes=[timeframe] if timeframe else None,
+        markets=[market] if market else None,
+    )
+
+
 @router.post("/expert-validation")
 async def expert_validation(
     market: str = "crypto",

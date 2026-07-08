@@ -118,6 +118,26 @@ async def strategy_alerts_loop() -> None:
             logger.exception("Échec des alertes stratégie (%s)", exc)
 
 
+async def edge_sweep_loop() -> None:
+    """Sweep NOCTURNE de la carte de l'edge : walk-forward de toutes les stratégies × symboles × TF.
+
+    Phase B du plan maître : savoir en continu OÙ il y a un edge exploitable (et où il n'y en a
+    pas). Premier passage ~10 min après le boot, puis toutes les `edge_sweep_interval_hours` h."""
+    from app.repositories.store import get_store
+    from app.services import edge_map_service
+
+    await asyncio.sleep(600)  # laisser le démarrage se stabiliser
+    while True:
+        s = get_settings()
+        if s.edge_sweep_enabled:
+            try:
+                payload = await edge_map_service.run_edge_sweep(get_store())
+                logger.info("Carte de l'edge mise à jour : %s", payload.get("note"))
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("Échec du sweep de la carte de l'edge (%s)", exc)
+        await asyncio.sleep(max(3600, s.edge_sweep_interval_hours * 3600))
+
+
 async def positions_loop() -> None:
     """Surveillance continue des positions papier : clôture auto dès qu'un SL/TP est atteint."""
     from app.repositories.store import get_store
