@@ -20,6 +20,10 @@ async def run(candles: list[Candle]) -> AgentOutput:
     if len(candles) < 20:
         return AgentOutput(name, 0.0, 0.1, "Données insuffisantes pour l'analyse de volume.")
 
+    # Sans volume réel (ex. forex spot : volume=0), OBV/VWAP/divergence sont du bruit -> rester neutre.
+    if sum(c.volume for c in candles) <= 0:
+        return AgentOutput(name, 0.0, 0.15, "Pas de données de volume fiables (marché sans volume, ex. forex) — agent neutre.")
+
     price = candles[-1].close
     obv_line = ind.obv(candles)
     vwap_val = ind.vwap(candles)
@@ -57,6 +61,25 @@ async def run(candles: list[Candle]) -> AgentOutput:
         elif not price_trend and obv_trend:
             signals.append(0.4)
             notes.append("Divergence haussière Prix/OBV")
+
+    # Pic de volume (climax) : volume > 2× la moyenne 20 = mouvement CONFIRMÉ par la participation.
+    if len(candles) >= 21:
+        avg_vol = sum(c.volume for c in candles[-21:-1]) / 20
+        last = candles[-1]
+        if avg_vol > 0 and last.volume > 2 * avg_vol:
+            move_up = last.close > last.open
+            signals.append(0.35 if move_up else -0.35)
+            notes.append(
+                f"Pic de volume ({last.volume / avg_vol:.1f}× la moyenne) confirmant le mouvement "
+                f"{'haussier' if move_up else 'baissier'}"
+            )
+
+    # Ligne Accumulation/Distribution : les pros y lisent la pression réelle (achats sur les creux ?).
+    ad_line = ind.acc_dist(candles)
+    if len(ad_line) >= 10:
+        ad_up = ad_line[-1] > ad_line[-10]
+        signals.append(0.2 if ad_up else -0.2)
+        notes.append(f"Ligne A/D en {'hausse (accumulation institutionnelle)' if ad_up else 'baisse (distribution)'}")
 
     score = _clamp(sum(signals) / max(len(signals), 1))
     confidence = min(1.0, 0.4 + 0.15 * len(signals))

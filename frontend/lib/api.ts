@@ -21,7 +21,21 @@ export type Signal = {
   consensus_pct?: number;
   mtf?: { aligned: number; total: number; details: Record<string, string> };
   high_conviction?: boolean;
-  agents?: { name: string; score: number; confidence: number; rationale: string }[];
+  agents?: { name: string; score: number; confidence: number; rationale: string; details?: Record<string, any> }[];
+  news?: { headline: string; sentiment?: number | null }[];
+  created_at?: string;
+  trade_outcome?: { outcome: string; pnl: number | null } | null;
+};
+
+export type SignalsTrackRecord = {
+  observed: { total_entries: number; closed: number; open: number; wins: number; losses: number; win_rate: number; total_pnl: number };
+  avoided: { blocked: number; would_have_lost: number; would_have_won: number; undecided: number };
+};
+
+export type MarketRegime = {
+  utc_time: string; sessions: { id: string; label: string; window_utc: string; open: boolean }[];
+  open_sessions: string[]; vix: number | null; regime: 'on' | 'off' | 'neutral'; regime_label: string;
+  rate_trend?: string | null; inflation?: number | null;
 };
 
 export type Candle = {
@@ -59,6 +73,13 @@ export type Settings = {
 };
 
 export type Branding = { brand_name: string; primary_color: string; logo_url: string; custom_domain?: string; tenant_id?: string };
+
+export type Wallet = {
+  starting_balance: number; balance: number; equity: number; realized_pnl: number; unrealized_pnl: number; return_pct: number;
+  stats: { trades: number; wins: number; losses: number; win_rate: number; profit_factor: number; open_positions: number; best_trade: number; worst_trade: number };
+  positions: { id: string; symbol: string; side: string; entry: number; qty: number; current_price: number | null; stop_loss?: number | null; take_profit?: number | null; unrealized_pnl: number }[];
+  equity_curve: { t: string | null; equity: number; symbol?: string; outcome?: string; pnl?: number }[];
+};
 
 export type RiskStatus = {
   capital: number;
@@ -148,16 +169,65 @@ export type JournalInsights = {
     total_pnl: number;
   };
   weight_multipliers: Record<string, number>;
+  reliability?: { agent: string; samples: number; hit_rate: number; multiplier: number; low_sample?: boolean }[];
+  trades_learned?: number;
 };
 
 export type TeamMember = { id: string; email: string; full_name?: string | null; role: string; onboarded: boolean };
 
 export type BrokerConn = { id: string; broker: string; mode: string; key_hint: string; created_at?: string };
-export type Order = { id: string; broker: string; mode: string; symbol: string; side: string; qty: number; status: string; filled_price: number | null; copied_from?: string };
+export type Order = {
+  id: string; broker: string; mode: string; symbol: string; side: string; qty: number;
+  status: string; filled_price: number | null; copied_from?: string;
+  entry?: number | null; stop_loss?: number | null; take_profit?: number | null;
+  risk_reward?: number | null; risk_amount?: number | null; potential_profit?: number | null;
+  // Vérification d'issue (gagné/perdu/ouvert)
+  outcome?: 'won' | 'lost' | 'open' | null; exit_price?: number | null; realized_pnl?: number | null;
+  closed_at?: string | null; current_price?: number | null; unrealized_pnl?: number | null; note?: string;
+};
 export type Trader = { tenant_id: string; display_name: string; win_rate: number; total_pnl: number; closed_trades: number };
 export type CopyFollow = { id: string; leader_tenant: string; allocation_pct: number; max_per_trade: number; min_confidence: number; active: boolean };
 export type Listing = { id: string; title: string; kind: string; price: number; description: string; seller_tenant: string; created_at?: string };
 export type ApiKey = { id: string; label: string; prefix: string; active: boolean; created_at?: string };
+
+export type WalkForward = {
+  symbol: string; timeframe: string; strategy_id?: string | null; total_trades: number; folds_evaluated: number;
+  profitable_folds: number; beats_hold_folds?: number; consistency: number; avg_win_rate: number; avg_profit_factor: number;
+  avg_pnl_pct: number; avg_alpha_pct?: number; data_real: boolean; verdict: string; label: string;
+  folds: { fold: number; from: string; to: string; trades: number; win_rate: number; profit_factor: number; pnl_pct: number; alpha_pct?: number; max_drawdown_pct: number; profitable: boolean; beats_hold?: boolean }[];
+};
+
+export type TrackRecord = {
+  date: string;
+  validation: WalkForward[];
+  summary: { symbols: number; robust: number };
+  observed: { total_entries: number; closed: number; open: number; wins: number; losses: number; win_rate: number; total_pnl: number };
+  disclaimer: string;
+};
+
+export type StrategyInfo = { id: string; name: string; category: string; description: string; markets?: string[] };
+export type StrategyBacktest = {
+  strategy: string; symbol: string; timeframe: string;
+  metrics: { trades: number; win_rate: number; profit_factor: number; total_pnl_pct: number; max_drawdown_pct: number; sharpe: number; expectancy: number };
+  benchmark_pnl_pct?: number; alpha_pct?: number; cost_pct_per_side?: number;
+  equity_curve: { t: string; equity: number }[];
+};
+export type StrategyComparison = {
+  symbol: string; timeframe: string;
+  ranking: { id: string; name: string; category: string; trades: number; win_rate: number; profit_factor: number; pnl_pct: number; alpha_pct: number; max_drawdown_pct: number; sharpe: number }[];
+  best: StrategyComparison['ranking'][number] | null;
+  recommended: StrategyComparison['ranking'][number] | null;
+  note: string;
+};
+export type MultiValidation = {
+  strategy: string; timeframe: string; symbols: number; robust: number; fragile: number;
+  beats_hold: number; verdict: string; results: WalkForward[];
+};
+export type StrategySignal = {
+  strategy: string; name?: string; symbol: string; timeframe?: string; direction: 'BUY' | 'SELL' | 'HOLD';
+  entry: number; stop_loss?: number; take_profit_1?: number; take_profit_2?: number;
+  risk_reward?: number; position_size?: number; data_source?: string; rationale: string;
+};
 
 export type AgentInfo = { name: string; role: string; desc: string; model: string };
 
@@ -208,6 +278,11 @@ export const api = {
   onboard: (risk_profile: string, capital: number, watchlist: string[]) =>
     req<Me>('/api/onboarding', { method: 'POST', body: JSON.stringify({ risk_profile, capital, watchlist }) }),
   listSignals: () => req<Signal[]>('/api/signals'),
+  getSignal: (id: string) => req<Signal>(`/api/signals/${id}`),
+  signalsTrackRecord: () => req<SignalsTrackRecord>('/api/signals/track-record'),
+  signalMode: () => req<{ mode: string }>('/api/signals/mode'),
+  setSignalMode: (mode: string) => req<{ mode: string }>(`/api/signals/mode?mode=${mode}`, { method: 'POST' }),
+  marketRegime: () => req<MarketRegime>('/api/market/regime'),
   clearSignals: () => req<{ deleted: number }>('/api/signals', { method: 'DELETE' }),
   ohlcv: (asset: string, timeframe: string) =>
     req<Candle[]>(`/api/market/ohlcv?asset=${encodeURIComponent(asset)}&timeframe=${timeframe}`),
@@ -218,8 +293,10 @@ export const api = {
     if (session) p.set('session', session);
     return req<{ results: { symbol: string; asset_class: string; label?: string }[]; classes: string[] }>(`/api/market/symbols?${p}`);
   },
-  dailyPicks: (refresh = false) =>
-    req<{ date: string; picks: any[]; generated_at: string }>(`/api/signals/daily-picks${refresh ? '?refresh=true' : ''}`),
+  dailyPicks: (refresh = false, timeframe = '1h') =>
+    req<{ date: string; timeframe?: string; picks: any[]; generated_at: string }>(
+      `/api/signals/daily-picks?timeframe=${timeframe}${refresh ? '&refresh=true' : ''}`,
+    ),
   verifySignal: (s: Signal) =>
     req<{ verdict: string; passed: number; total: number; checks: { label: string; pass: boolean; value: any }[]; backtest: any }>(
       '/api/signals/verify',
@@ -248,6 +325,10 @@ export const api = {
         high_conviction_only: String(high_conviction_only),
       })}`,
     ),
+  dataSource: (asset: string, timeframe = 'swing') =>
+    req<{ asset: string; source: string; real: boolean; label: string }>(
+      `/api/market/data-source?asset=${encodeURIComponent(asset)}&timeframe=${timeframe}`,
+    ),
   sessions: () =>
     req<{ utc_time: string; active: string[]; sessions: { id: string; label: string; window_utc: string; open: boolean; symbol_count: number }[] }>('/api/market/sessions'),
   generate: (asset: string, timeframe: string, notify = false) =>
@@ -268,14 +349,37 @@ export const api = {
   mfaDisable: () => req<Me>('/api/auth/mfa/disable', { method: 'POST' }),
   runBacktest: (config: BacktestConfig) => req<BacktestReport>('/api/backtest/run', { method: 'POST', body: JSON.stringify(config) }),
   listBacktests: () => req<BacktestReport[]>('/api/backtest/reports'),
+  walkForward: (symbol: string, timeframe = '1h', folds = 4) =>
+    req<WalkForward>(`/api/backtest/walk-forward?symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}&folds=${folds}`, { method: 'POST' }),
+  trackRecord: (refresh = false) =>
+    req<TrackRecord>(`/api/backtest/track-record${refresh ? '?refresh=true' : ''}`),
+  // Stratégies
+  strategies: () => req<{ strategies: StrategyInfo[] }>('/api/strategies'),
+  strategyBacktest: (symbol: string, strategy: string, timeframe = '1h') =>
+    req<StrategyBacktest>(`/api/strategies/backtest?symbol=${encodeURIComponent(symbol)}&strategy=${strategy}&timeframe=${timeframe}`, { method: 'POST' }),
+  strategyWalkForward: (symbol: string, strategy: string, timeframe = '1h', folds = 4) =>
+    req<WalkForward>(`/api/strategies/walk-forward?symbol=${encodeURIComponent(symbol)}&strategy=${strategy}&timeframe=${timeframe}&folds=${folds}`, { method: 'POST' }),
+  strategyValidateMulti: (strategy: string, timeframe = '1h', market = 'crypto') =>
+    req<MultiValidation>(`/api/strategies/validate-multi?strategy=${strategy}&timeframe=${timeframe}&market=${market}`, { method: 'POST' }),
+  autoTrade: () => req<{ auto_trade: boolean }>('/api/strategies/auto-trade'),
+  setAutoTrade: (enabled: boolean) =>
+    req<{ auto_trade: boolean }>(`/api/strategies/auto-trade?enabled=${enabled}`, { method: 'POST' }),
+  compareStrategies: (symbol: string, timeframe = '1h') =>
+    req<StrategyComparison>(`/api/strategies/compare?symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}`, { method: 'POST' }),
+  selectStrategy: (strategy: string) =>
+    req<{ selected: string }>(`/api/strategies/select?strategy=${strategy}`, { method: 'POST' }),
+  selectedStrategy: () => req<{ selected: string | null }>('/api/strategies/selected'),
+  strategySignal: (symbol: string, strategy?: string, timeframe = '1h') =>
+    req<StrategySignal>(`/api/strategies/signal?symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}${strategy ? `&strategy=${strategy}` : ''}`, { method: 'POST' }),
   agentsStatus: () => req<AgentStatus>('/api/agents/status'),
   // Phase 3
   myPlan: () => req<PlanInfo>('/api/plan'),
   upgrade: (plan: string) => req<{ mode: string; checkout_url?: string }>(`/api/billing/checkout/${plan}`, { method: 'POST' }),
-  copilotAsk: (asset: string, message: string) =>
-    req<{ asset: string; answer: string }>('/api/copilot/ask', { method: 'POST', body: JSON.stringify({ asset, message }) }),
+  copilotAsk: (message: string, asset?: string) =>
+    req<{ asset: string; answer: string }>('/api/copilot/ask', { method: 'POST', body: JSON.stringify({ message, ...(asset ? { asset } : {}) }) }),
   journalList: () => req<JournalEntry[]>('/api/journal'),
   journalInsights: () => req<JournalInsights>('/api/journal/insights'),
+  journalAutoResolve: () => req<{ resolved: number }>('/api/journal/auto-resolve', { method: 'POST' }),
   journalClose: (id: string, outcome: string, pnl: number | null) =>
     req<JournalEntry>(`/api/journal/${id}/close`, { method: 'POST', body: JSON.stringify({ outcome, pnl }) }),
   journalExplain: (id: string) =>
@@ -291,9 +395,17 @@ export const api = {
   connectBroker: (broker: string, mode: string, api_key = '', api_secret = '') =>
     req<BrokerConn>('/api/execution/brokers', { method: 'POST', body: JSON.stringify({ broker, mode, api_key, api_secret }) }),
   revokeBroker: (id: string) => req<{ revoked: boolean }>(`/api/execution/brokers/${id}`, { method: 'DELETE' }),
-  placeOrder: (conn_id: string, symbol: string, side: string, qty: number) =>
-    req<Order>('/api/execution/orders', { method: 'POST', body: JSON.stringify({ conn_id, symbol, side, qty }) }),
+  placeOrder: (conn_id: string, symbol: string, side: string, qty: number, stop_loss?: number | null, take_profit?: number | null) =>
+    req<Order>('/api/execution/orders', {
+      method: 'POST',
+      body: JSON.stringify({ conn_id, symbol, side, qty, stop_loss: stop_loss ?? null, take_profit: take_profit ?? null }),
+    }),
   orders: () => req<Order[]>('/api/execution/orders'),
+  wallet: () => req<Wallet>('/api/wallet'),
+  resetWallet: (starting_balance: number, clear_orders = true) =>
+    req<Wallet>(`/api/wallet/reset?starting_balance=${starting_balance}&clear_orders=${clear_orders}`, { method: 'POST' }),
+  checkOrder: (id: string) => req<Order>(`/api/execution/orders/${id}/check`, { method: 'POST' }),
+  closeOrder: (id: string) => req<Order>(`/api/execution/orders/${id}/close`, { method: 'POST' }),
   // Phase 4 — Copy-trading
   leaderboard: () => req<Trader[]>('/api/copytrading/leaderboard'),
   publishProfile: (display_name: string) => req<unknown>('/api/copytrading/publish', { method: 'POST', body: JSON.stringify({ display_name }) }),
@@ -319,16 +431,16 @@ export const api = {
 
 /** Copilot en streaming SSE. Appelle onDelta pour chaque fragment, onDone à la fin. */
 export async function copilotStream(
-  asset: string,
   message: string,
   onDelta: (s: string) => void,
   onDone?: () => void,
+  asset?: string,
 ): Promise<void> {
   const t = token();
   const res = await fetch(`${API}/api/copilot/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) },
-    body: JSON.stringify({ asset, message }),
+    body: JSON.stringify({ message, ...(asset ? { asset } : {}) }),
   });
   if (!res.ok || !res.body) {
     throw new Error(res.status === 402 ? 'Copilot réservé au plan Pro' : `Erreur ${res.status}`);
@@ -356,7 +468,12 @@ export async function copilotStream(
   onDone?.();
 }
 
-export function openSignalStream(onSignal: (s: Signal) => void): WebSocket | null {
+export type LiveCandle = { symbol: string; interval: string; open: number; high: number; low: number; close: number; volume: number };
+
+export function openSignalStream(
+  onSignal: (s: Signal) => void,
+  onCandle?: (c: LiveCandle) => void,
+): WebSocket | null {
   const t = token();
   if (!t) return null;
   const ws = new WebSocket(`${WS}/signals?token=${t}`);
@@ -364,6 +481,7 @@ export function openSignalStream(onSignal: (s: Signal) => void): WebSocket | nul
     try {
       const msg = JSON.parse(ev.data);
       if (msg.type === 'signal') onSignal(msg.data as Signal);
+      else if (msg.type === 'candle') onCandle?.(msg.data as LiveCandle);
     } catch {
       /* ignore */
     }

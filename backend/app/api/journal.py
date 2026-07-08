@@ -37,12 +37,28 @@ async def insights(
     user: User = Depends(require_feature("journal")),
     store: AppStore = Depends(store_dep),
 ) -> dict:
-    """Statistiques + multiplicateurs de pondération appris (ce que le Master applique)."""
+    """Statistiques + apprentissage : fiabilité par agent et volume de trades appris."""
+    from app.agents.journal import reliability_report
+
     entries = journal_service.recent_entries(store, user.tenant_id, limit=500)
+    report = reliability_report(entries)
+    learned = sum(1 for e in entries if e.get("outcome") in ("win", "loss"))
     return {
         "stats": journal_service.stats(entries),
         "weight_multipliers": journal_service.compute_multipliers(store, user.tenant_id),
+        "reliability": report,            # détail par agent (réussite, volume, multiplicateur)
+        "trades_learned": learned,        # nombre de trades clôturés qui nourrissent l'apprentissage
     }
+
+
+@router.post("/auto-resolve")
+async def auto_resolve(
+    user: User = Depends(require_feature("journal")),
+    store: AppStore = Depends(store_dep),
+) -> dict:
+    """Force la résolution des signaux ouverts (sinon fait automatiquement en arrière-plan)."""
+    resolved = await journal_service.auto_resolve(store, user.tenant_id)
+    return {"resolved": resolved}
 
 
 @router.post("/{entry_id}/close")

@@ -37,6 +37,21 @@ class ConnectionHub:
                 for ws in dead:
                     self._conns[tenant_id].discard(ws)
 
+    async def broadcast_all(self, message: dict) -> None:
+        """Diffuse à TOUTES les connexions (données marché publiques, non liées à un tenant)."""
+        async with self._lock:
+            targets = [(tid, ws) for tid, conns in self._conns.items() for ws in conns]
+        dead: list[tuple[str, WebSocket]] = []
+        for tid, ws in targets:
+            try:
+                await ws.send_json(message)
+            except Exception:  # noqa: BLE001 — connexion morte
+                dead.append((tid, ws))
+        if dead:
+            async with self._lock:
+                for tid, ws in dead:
+                    self._conns[tid].discard(ws)
+
 
 _hub: ConnectionHub | None = None
 

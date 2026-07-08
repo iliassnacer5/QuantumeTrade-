@@ -72,32 +72,42 @@ async def backtest_metrics(symbol: str, interval: str, limit: int = 500) -> dict
         return None
 
 
-async def daily_picks(per_market: int = 3, classes: tuple[str, ...] = ("crypto", "forex", "stock")) -> list[dict]:
-    """Sélection quotidienne : par marché, les setups haute-conviction CONFIRMÉS par backtest.
+async def daily_picks(
+    per_market: int = 3,
+    classes: tuple[str, ...] = ("crypto", "forex", "stock", "commodity"),
+    timeframe: str = "1h",
+) -> list[dict]:
+    """Sélection quotidienne GRADUÉE par marché — toujours utile sans jamais mentir.
 
-    Critères retenus : ★ haute-conviction (ADX>25, tendance forte) ET backtest fiable
-    (taux de réussite > 55 % et profit factor > 1,3 sur ≥ 5 trades). C'est la liste de trades
-    « fiables et bien backtestés » à surveiller dans chaque marché.
+    Deux niveaux de fiabilité :
+    - ``confirmed`` : ★ haute-conviction (ADX>25) ET backtest fiable (réussite>55 %, PF>1,3, ≥5 trades).
+    - ``watch``     : meilleurs setups directionnels du moment, à surveiller mais NON confirmés.
+
+    On privilégie les ``confirmed`` ; s'il n'y en a pas assez, on complète avec des ``watch`` clairement
+    étiquetés. Mieux vaut proposer les meilleures opportunités honnêtement qualifiées qu'une page vide.
     """
     out: list[dict] = []
     for cls in classes:
-        scanned = await scan_market(asset_class=cls, timeframe="1h", limit=14, high_conviction_only=True)
-        kept = 0
-        for cand in scanned:  # déjà triés par conviction
-            bt = await backtest_metrics(cand["symbol"], "1h")
-            if not bt or bt["trades"] < 5:
-                continue
-            reliable = bt["win_rate"] > 55 and bt["profit_factor"] > 1.3
-            if not reliable:
-                continue
-            out.append({
+        scanned = await scan_market(asset_class=cls, timeframe=timeframe, limit=12)
+        directional = [c for c in scanned if c["direction"] != "HOLD"]
+        confirmed: list[dict] = []
+        watch: list[dict] = []
+        for cand in directional[:8]:  # borne les backtests (coût)
+            bt = await backtest_metrics(cand["symbol"], timeframe)
+            reliable = bool(bt and bt["trades"] >= 5 and bt["win_rate"] > 55 and bt["profit_factor"] > 1.3)
+            item = {
                 "symbol": cand["symbol"], "asset_class": cls, "direction": cand["direction"],
                 "price": cand["price"], "adx": cand["adx"], "rsi": cand["rsi"],
                 "trend": cand["trend"], "conviction": cand["conviction"], "backtest": bt,
-            })
-            kept += 1
-            if kept >= per_market:
-                break
+                "high_conviction": cand["high_conviction"], "reliable": reliable,
+                "tier": "confirmed" if (cand["high_conviction"] and reliable) else "watch",
+                "timeframe": timeframe,
+            }
+            (confirmed if item["tier"] == "confirmed" else watch).append(item)
+        picks = confirmed[:per_market]
+        if len(picks) < per_market:
+            picks += watch[: per_market - len(picks)]
+        out.extend(picks)
     return out
 
 
@@ -135,7 +145,77 @@ async def verify_signal(
         verdict = "moderate"
     else:
         verdict = "weak"
-    return {"verdict": verdict, "passed": passed, "total": total, "checks": checks, "backtest": bt}
+
+    # Interprétation HONNÊTE et non alarmante (les chiffres bruts de backtest font peur sans contexte).
+    interpretation = {
+        "strong": "✅ Setup solide : critères réunis et backtest favorable. Reste prudent, rien n'est garanti.",
+        "moderate": "⚠️ Setup moyen : une partie des critères seulement. À ne prendre qu'avec une gestion stricte du risque.",
+        "weak": ("ℹ️ Edge non prouvé sur l'historique — c'est NORMAL : presque aucune stratégie ne franchit "
+                 "cette barre (55 % de réussite, PF>1,3) APRÈS frais. Ce n'est pas un bug, c'est l'honnêteté. "
+                 "Ne traite pas ce signal à l'aveugle ; entraîne-toi en paper et juge sur la durée."),
+        "skip": "⏸️ Pas de trade : signal neutre ou filtré. S'abstenir est une décision valable.",
+    }.get(verdict, "")
+    return {"verdict": verdict, "passed": passed, "total": total, "checks": checks,
+            "backtest": bt, "interpretation": interpretation}
+
+
+def finalize_decision(card, mtf_res: dict, blackout: tuple[bool, str] | None = None,
+                      mode: str = "strict") -> "SignalCard":
+    """Applique la décision FINALE — identique partout (analyse détaillée ET scanner).
+
+    0) Gate ÉVÉNEMENTIEL : blackout news/earnings/FOMC -> HOLD (avant tout, pas de trade).
+    1) Gate multi-timeframe : BUY/SELL seulement si ≥2/3 unités alignées, sinon HOLD.
+    2) Filtre de qualité : confiance + ADX + R/R (cf. quality.is_tradeable), sinon HOLD.
+    3) Flag ★ haute-conviction.
+    Source unique de vérité -> le scanner et l'analyse ne peuvent plus diverger."""
+    from app.core.config import get_settings
+    from app.models.signal import Direction
+    from app.signal_engine import quality
+
+    card.mtf = mtf_res
+
+    def _to_hold(reason: str) -> None:
+        # Mémorise le trade BLOQUÉ (direction + niveaux d'origine) -> permet de mesurer après coup
+        # ce que les filtres t'ont évité (rejeu du prix : le trade bloqué aurait-il perdu ?).
+        if card.direction != Direction.HOLD:
+            card.metrics["blocked_direction"] = card.direction.value
+            card.metrics["blocked_entry"] = card.entry
+            card.metrics["blocked_sl"] = card.stop_loss
+            card.metrics["blocked_tp"] = card.take_profit_1
+        card.direction = Direction.HOLD
+        card.stop_loss = card.take_profit_1 = card.entry
+        card.take_profit_2 = card.take_profit_3 = None
+        card.risk_reward = 0.0
+        card.position_size = card.position_value = card.risk_amount = None
+        card.confidence = min(card.confidence, 45)
+        card.rationale = reason + "\n" + card.rationale
+
+    # 0) Gate événementiel (en tête) : on ne trade pas dans une fenêtre à fort impact.
+    if blackout and blackout[0]:
+        _to_hold(f"⏸️ Blackout événementiel : {blackout[1]} — pas de trade. [EVENT_LOCK]")
+        card.high_conviction = False
+        return card
+
+    th = quality.thresholds(mode)
+    # 1) Gate multi-timeframe (seuil selon le mode : strict/équilibré = 2/3, agressif = 1/3)
+    if card.direction != Direction.HOLD and mtf_res.get("total", 0) >= 2 and mtf_res.get("aligned", 0) < th["mtf_min"]:
+        _to_hold("⏸️ Non confirmé par le multi-timeframe (unités de temps divergentes) — pas de trade.")
+    # 2) Filtre de qualité (confiance + ADX + R/R, seuils du mode)
+    if get_settings().entry_quality_gate and card.direction != Direction.HOLD and not quality.is_tradeable(card, mode=mode):
+        _to_hold(f"⏸️ Setup filtré (qualité insuffisante : {quality.rejection_reason(card, mode=mode)}) — pas de trade.")
+    card.metrics["signal_mode"] = mode
+
+    adx = card.metrics.get("adx")
+    card.high_conviction = bool(
+        card.direction.value != "HOLD"
+        and adx and adx > 25
+        and card.consensus_pct >= 70
+        and mtf_res.get("aligned", 0) >= 2
+    )
+    # Scores explicatifs (contexte marché + timing) — informatifs, non bloquants.
+    card.metrics["context_score"] = quality.context_score(card)
+    card.metrics["timing_score"] = quality.timing_score(card)
+    return card
 
 
 async def scan_market(
@@ -144,12 +224,16 @@ async def scan_market(
     limit: int = 20,
     high_conviction_only: bool = False,
     symbols: list[dict] | None = None,
+    confirm_mtf: bool = False,
+    user: User | None = None,
+    store: AppStore | None = None,
 ) -> list[dict]:
     """Scanne un marché et classe les symboles par conviction (rapide : analyse technique).
 
     Retourne TOUS les symboles analysés, triés par score de conviction, avec un flag
-    `high_conviction` (ADX>25 + tendance franche). Le multi-timeframe complet et les news sont
-    calculés à la demande quand l'utilisateur ouvre un symbole (« Analyser »).
+    `high_conviction`. Si `confirm_mtf` est vrai, le flag ★ n'est conservé que si le
+    multi-timeframe CONFIRME la direction (≥2/3 unités alignées) — comme l'analyse détaillée,
+    pour que le scanner ne contredise pas la décision finale.
 
     `symbols` : univers explicite (ex. paires d'une session mondiale) ; sinon le catalogue.
     """
@@ -158,38 +242,102 @@ async def scan_market(
     from app.models.signal import Direction
 
     universe = symbols[:limit] if symbols else symbols_catalog.search(asset_class=asset_class, limit=limit)
+
+    # 1re passe (rapide) : analyse technique seule pour classer tout l'univers.
     results: list[dict] = []
+    candle_cache: dict[str, list] = {}
     for item in universe:
         sym = item["symbol"]
         try:
             candles = await markets.load_candles(sym, interval=timeframe, limit=200)
             if len(candles) < 60:
                 continue
+            candle_cache[sym] = candles
             a = ta.analyze(candles)
             m = a["metrics"]
             adx = m.get("adx", 0) or 0
             direction = Direction.BUY if a["score"] > 0.12 else Direction.SELL if a["score"] < -0.12 else Direction.HOLD
             high_conv = direction != Direction.HOLD and ta.is_high_conviction(a["score"], adx, item["asset_class"])
-            conviction = round(abs(a["score"]) * (1 + adx / 50), 3)
             results.append({
-                "symbol": sym,
-                "asset_class": item["asset_class"],
-                "direction": direction.value,
-                "score": a["score"],
-                "adx": round(adx, 1),
-                "adx_state": m.get("adx_state"),
-                "trend": m.get("trend"),
-                "rsi": m.get("rsi"),
-                "price": m.get("price"),
-                "conviction": conviction,
-                "high_conviction": high_conv,
+                "symbol": sym, "asset_class": item["asset_class"], "direction": direction.value,
+                "score": a["score"], "adx": round(adx, 1), "adx_state": m.get("adx_state"),
+                "trend": m.get("trend"), "rsi": m.get("rsi"), "price": m.get("price"),
+                "conviction": round(abs(a["score"]) * (1 + adx / 50), 3),
+                "high_conviction": high_conv, "mtf_aligned": None, "mtf_total": None,
+                "consolidated": False,
             })
         except Exception as exc:  # noqa: BLE001
             logger.warning("Scan %s échoué (%s)", sym, exc)
+
+    # 2e passe (cohérence) : pour les meilleurs candidats ★, on exécute EXACTEMENT la même décision
+    # que l'analyse détaillée (mêmes agents, news, macro, LLM, gates) via finalize_decision, pour un
+    # utilisateur neutre. Borné à _CONSOLIDATE_TOP pour le coût. -> scanner == analyse (compte neutre).
+    if confirm_mtf:
+        raw_hc = [r for r in results if r["high_conviction"]]
+        raw_hc.sort(key=lambda r: r["conviction"], reverse=True)
+        macro_ctx = await macro_data_mod.fetch_macro_data()
+        # Contexte de l'utilisateur (exposition réelle + apprentissage) -> scanner == SON analyse.
+        if user is not None and store is not None:
+            ctx = {"exposure_pct": risk_service.real_exposure_pct(user, store), "drawdown_pct": 0.0}
+            tenant = user.tenant_id
+            capital = user.capital
+            rpt = _RISK_PCT.get(user.risk_profile, 1.0)
+            scan_mode = (store.records.get("signal_mode", tenant) or {}).get("mode", "strict")
+        else:
+            ctx, tenant, capital, rpt = {"exposure_pct": 0.0, "drawdown_pct": 0.0}, None, 10000.0, 1.0
+            scan_mode = "strict"
+        consolidated_syms = {r["symbol"] for r in raw_hc[:_CONSOLIDATE_TOP]}
+        for row in results:
+            if row["symbol"] in consolidated_syms:
+                # Apprentissage PAR MARCHÉ (comme l'analyse) -> cohérence préservée.
+                jmult = journal_service.compute_multipliers(store, tenant, market=row["asset_class"]) if (store and tenant) else None
+                await _consolidate_row(row, candle_cache[row["symbol"]], macro_ctx, ctx, jmult, capital, rpt, scan_mode)
+            else:
+                # Non consolidé : lead technique seul -> on n'affirme NI ★ NI verdict (à analyser).
+                row["high_conviction"] = False
+                row["consolidated"] = False
+
     if high_conviction_only:
         results = [r for r in results if r["high_conviction"]]
     results.sort(key=lambda r: (r["high_conviction"], r["conviction"]), reverse=True)
     return results
+
+
+_CONSOLIDATE_TOP = 8  # nb de meilleurs candidats évalués À L'IDENTIQUE de l'analyse (LLM inclus)
+
+
+async def _consolidate_row(
+    row: dict, candles: list, macro_ctx: dict,
+    risk_context: dict, journal_mult: dict | None, capital: float, risk_pct: float,
+    mode: str = "strict",
+) -> None:
+    """Recalcule la décision FINALE d'un candidat EXACTEMENT comme l'analyse (mêmes agents + LLM + gates
+    + MÊME contexte utilisateur : exposition + apprentissage). -> identique à « Analyser ce symbole »."""
+    from app.data import fundamentals
+    from app.domain.risk import RiskParams
+    from app.models.signal import Timeframe
+    from app.signal_engine import mtf
+    from app.signal_engine.engine import generate_signal
+
+    sym = row["symbol"]
+    news = await news_mod.fetch_news(sym)
+    ratios = await fundamentals.fetch_ratios(sym) if row["asset_class"] == "stock" else None
+    card = await generate_signal(
+        asset=sym, candles=candles, news=news,
+        risk=RiskParams(capital=capital, risk_per_trade_pct=risk_pct),
+        timeframe=Timeframe.SWING, ratios=ratios, macro_data=macro_ctx,
+        risk_context=risk_context, journal_multipliers=journal_mult,
+    )
+    from app.data import economic_calendar
+    mtf_res = await mtf.confirm(sym, card.direction)
+    blackout = await economic_calendar.is_news_blackout(sym, row["asset_class"])
+    finalize_decision(card, mtf_res, blackout, mode=mode)
+    row["direction"] = card.direction.value
+    row["consensus"] = card.consensus_pct
+    row["mtf_aligned"] = mtf_res["aligned"]
+    row["mtf_total"] = mtf_res["total"]
+    row["high_conviction"] = card.high_conviction
+    row["consolidated"] = True
 
 
 async def generate_for_user(
@@ -204,6 +352,11 @@ async def generate_for_user(
     candles = await _load_candles(asset, timeframe)
     news_items = await news_mod.fetch_news(asset)
     macro_ctx = await macro_data_mod.fetch_macro_data()
+    # Ratios fondamentaux pour les ACTIONS (Finnhub) -> alimente l'agent fondamental.
+    ratios = None
+    if markets.asset_class(asset) == "stock":
+        from app.data import fundamentals
+        ratios = await fundamentals.fetch_ratios(asset)
 
     risk = RiskParams(
         capital=user.capital,
@@ -214,7 +367,7 @@ async def generate_for_user(
     # L'agent risque se base sur l'exposition RÉELLE (ordres exécutés), pas sur l'accumulation des
     # analyses générées — sinon générer des signaux pénaliserait injustement la confiance.
     risk_context = {"exposure_pct": risk_service.real_exposure_pct(user, store), "drawdown_pct": 0.0}
-    journal_mult = journal_service.compute_multipliers(store, user.tenant_id)
+    journal_mult = journal_service.compute_multipliers(store, user.tenant_id, market=markets.asset_class(asset))
 
     card = await generate_signal(
         asset=asset,
@@ -222,6 +375,7 @@ async def generate_for_user(
         news=news_items,
         risk=risk,
         timeframe=timeframe,
+        ratios=ratios,
         macro_data=macro_ctx,
         risk_context=risk_context,
         journal_multipliers=journal_mult,
@@ -232,42 +386,25 @@ async def generate_for_user(
     if warn:
         card.risk_warning = warn if not card.risk_warning else f"{card.risk_warning} {warn}"
 
-    # Confirmation multi-timeframe (1h/4h/1j).
-    from app.models.signal import Direction
+    # Confirmation multi-timeframe (1h/4h/1j) puis décision finale (blackout + gate MTF + qualité + ★).
+    # Logique PARTAGÉE avec le scanner (finalize_decision) -> aucune divergence possible.
+    from app.data import economic_calendar
     from app.signal_engine import mtf
-    card.mtf = await mtf.confirm(asset, card.direction)
+    mtf_res = await mtf.confirm(asset, card.direction)
+    blackout = await economic_calendar.is_news_blackout(asset, markets.asset_class(asset))
+    mode = (store.records.get("signal_mode", user.tenant_id) or {}).get("mode", "strict")
+    finalize_decision(card, mtf_res, blackout, mode=mode)
 
-    # --- Gate MTF : on n'émet un BUY/SELL que si les unités de temps s'accordent (>=2/3). ---
-    # Sinon -> HOLD (pas de trade). Garantit que tout signal directionnel émis passe déjà le critère
-    # multi-timeframe = plus fiable, et évite les contre-tendances (ex. 1h BUY mais 4h/1j SELL).
-    if (
-        card.direction != Direction.HOLD
-        and card.mtf.get("total", 0) >= 2
-        and card.mtf.get("aligned", 0) < 2
-    ):
-        card.direction = Direction.HOLD
-        card.stop_loss = card.take_profit_1 = card.entry
-        card.take_profit_2 = card.take_profit_3 = None
-        card.risk_reward = 0.0
-        card.position_size = card.position_value = card.risk_amount = None
-        card.confidence = min(card.confidence, 40)
-        card.rationale = (
-            "⏸️ Signal non confirmé par le multi-timeframe (les unités de temps divergent) — pas de trade.\n"
-            + card.rationale
-        )
-
-    adx = card.metrics.get("adx")
-    card.high_conviction = bool(
-        card.direction.value != "HOLD"
-        and adx and adx > 25
-        and card.consensus_pct >= 70
-        and card.mtf.get("aligned", 0) >= 2
-    )
+    # News utilisées : consultables sur la page de la prédiction (transparence totale).
+    card.news = [
+        {"headline": n.headline, "sentiment": n.sentiment} for n in (news_items or [])[:6]
+    ]
 
     # Persistance (isolée par tenant)
     payload = card.model_dump(mode="json")
     stored = store.signals.add(user.tenant_id, payload)
     payload["id"] = stored.id
+    card.id = stored.id  # la réponse API porte l'id -> lien direct vers la page de la prédiction
 
     # Observabilité (Phase 5)
     from app.core import metrics

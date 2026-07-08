@@ -41,6 +41,11 @@ export default function JournalPage() {
     setExplanations((m) => ({ ...m, [id]: r.explanation }));
   }
 
+  async function autoResolve() {
+    await api.journalAutoResolve();
+    load();
+  }
+
   const locked = plan && !plan.features.journal;
   if (locked)
     return (
@@ -61,9 +66,14 @@ export default function JournalPage() {
     <div className="p-8 space-y-6">
       <header className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-white">Journal &amp; Apprentissage</h1>
-        <a href="/dashboard" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
-          ← Dashboard
-        </a>
+        <div className="flex gap-2">
+          <button onClick={autoResolve} className="rounded-lg border border-accent/50 px-3 py-1 text-sm text-accent hover:bg-accent/10">
+            Résoudre les signaux ouverts
+          </button>
+          <a href="/dashboard" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
+            ← Dashboard
+          </a>
+        </div>
       </header>
 
       {error && <p className="text-sell">{error}</p>}
@@ -84,16 +94,47 @@ export default function JournalPage() {
         </section>
       )}
 
-      {insights && Object.keys(insights.weight_multipliers).length > 0 && (
+      {insights && (
         <section className="rounded-xl border border-border bg-surface p-4">
-          <h2 className="mb-2 text-sm text-muted">Pondérations apprises (appliquées par le Master)</h2>
-          <div className="flex flex-wrap gap-2">
-            {Object.entries(insights.weight_multipliers).map(([agent, mult]) => (
-              <span key={agent} className="rounded-lg bg-[#1A1A1A] px-3 py-1 text-xs text-gray-200">
-                {agent} ×{mult.toFixed(2)}
-              </span>
-            ))}
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-white">Apprentissage — fiabilité par agent</h2>
+            <span className="text-xs text-muted">{insights.trades_learned ?? 0} trade(s) appris</span>
           </div>
+          {insights.reliability && insights.reliability.length > 0 ? (
+            <div className="space-y-2">
+              {insights.reliability.map((r) => (
+                <div key={r.agent} className="flex items-center gap-3 text-xs">
+                  <span className="w-24 capitalize text-gray-200">{r.agent}</span>
+                  <div className="h-2 flex-1 overflow-hidden rounded bg-background">
+                    <div
+                      className={`h-full ${r.low_sample ? 'bg-muted' : r.hit_rate >= 50 ? 'bg-buy' : 'bg-sell'}`}
+                      style={{ width: `${Math.min(100, r.hit_rate)}%` }}
+                    />
+                  </div>
+                  <span className="w-14 text-right text-white">{r.hit_rate}%</span>
+                  <span className="w-16 text-right text-muted" title={r.low_sample ? 'Échantillon faible : taux peu fiable statistiquement' : ''}>
+                    n={r.samples}{r.low_sample ? ' ⚠️' : ''}
+                  </span>
+                  <span className={`w-14 text-right ${r.multiplier >= 1 ? 'text-buy' : 'text-sell'}`}>×{r.multiplier.toFixed(2)}</span>
+                </div>
+              ))}
+              <p className="mt-2 text-[11px] text-muted">
+                Le poids de chaque agent (×) s&apos;ajuste selon sa réussite passée — l&apos;effet se renforce avec le volume de trades.
+                C&apos;est ce que le Master applique pour des signaux plus fiables.
+              </p>
+              {insights.reliability.some((r) => r.low_sample) && (
+                <p className="text-[11px] text-yellow-300/80">
+                  ⚠️ « n » faible (&lt;10) = taux encore peu fiable : quelques trades suffisent à afficher 0% ou 100% par hasard.
+                  Le multiplicateur reste volontairement prudent tant que le volume est faible.
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-muted">
+              Pas encore assez de trades clôturés. Génère des signaux et laisse-les se résoudre (auto ou bouton ci-dessus) :
+              l&apos;apprentissage démarre dès quelques trades et s&apos;affine ensuite.
+            </p>
+          )}
         </section>
       )}
 

@@ -5,14 +5,18 @@ import { useEffect, useState } from 'react';
 import { clearToken } from '@/lib/api';
 
 const LINKS: { href: string; label: string; accent?: boolean }[] = [
+  { href: '/today', label: '☀️ Ma journée', accent: true },
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/daily', label: '★ Trades du jour', accent: true },
   { href: '/scanner', label: 'Scanner' },
   { href: '/copilot', label: 'Copilot' },
   { href: '/journal', label: 'Journal' },
+  { href: '/strategies', label: 'Stratégies' },
   { href: '/backtest', label: 'Backtest' },
+  { href: '/track-record', label: 'Track Record' },
   { href: '/agents', label: 'Agents' },
-  { href: '/execution', label: 'Exécution' },
+  { href: '/execution', label: 'Paper Trading' },
+  { href: '/wallet', label: '💰 Portefeuille' },
   { href: '/copytrading', label: 'Copy' },
   { href: '/marketplace', label: 'Marketplace' },
   { href: '/branding', label: 'White-label' },

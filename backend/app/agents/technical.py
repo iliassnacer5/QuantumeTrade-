@@ -16,7 +16,33 @@ from app.domain.indicators import Candle
 logger = logging.getLogger(__name__)
 
 
-async def run(candles: list[Candle]) -> AgentOutput:
+async def run(candles: list[Candle], symbol: str | None = None, context: dict | None = None) -> AgentOutput:
+    """Routeur : aiguille vers l'expert du marché (crypto pour l'instant), sinon analyse générique.
+
+    Rétrocompatible : appelé sans `symbol`/`context` -> comportement générique inchangé (tests OK).
+    """
+    from app.core.config import get_settings
+
+    if get_settings().expert_agents_enabled and (symbol or context):
+        from app.data import markets
+
+        market = (context or {}).get("market_type") or markets.asset_class(symbol or "")
+        if market == "crypto":
+            from app.agents import crypto_expert
+            return await crypto_expert.run(candles, symbol=symbol or "BTC/USDT", context=context)
+        if market == "forex":
+            from app.agents import forex_expert
+            return await forex_expert.run(candles, symbol=symbol or "EUR/USD", context=context)
+        if market == "stock":
+            from app.agents import stocks_expert
+            return await stocks_expert.run(candles, symbol=symbol or "AAPL", context=context)
+        if market == "commodity":
+            from app.agents import gold_expert
+            return await gold_expert.run(candles, symbol=symbol or "XAU/USD", context=context)
+    return await _generic(candles)
+
+
+async def _generic(candles: list[Candle]) -> AgentOutput:
     name = "technical"
     if len(candles) < 35:
         return AgentOutput(name, 0.0, 0.1, "Données insuffisantes pour l'analyse technique.")

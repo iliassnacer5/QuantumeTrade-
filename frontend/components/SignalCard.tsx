@@ -7,7 +7,7 @@
 import { useState } from 'react';
 import { api, type Signal } from '@/lib/api';
 
-type Verdict = { verdict: string; passed: number; total: number; checks: { label: string; pass: boolean; value: any }[]; backtest: any };
+type Verdict = { verdict: string; passed: number; total: number; checks: { label: string; pass: boolean; value: any }[]; backtest: any; interpretation?: string };
 
 export function SignalCard({ s }: { s: Signal }) {
   const isBuy = s.direction === 'BUY';
@@ -22,6 +22,10 @@ export function SignalCard({ s }: { s: Signal }) {
 
   const [capital, setCapital] = useState(10000);
   const [riskPct, setRiskPct] = useState(1);
+
+  const [placing, setPlacing] = useState(false);
+  const [tradeMsg, setTradeMsg] = useState<string | null>(null);
+  const [tradeErr, setTradeErr] = useState<string | null>(null);
 
   async function verify() {
     setVerifying(true);
@@ -42,6 +46,25 @@ export function SignalCard({ s }: { s: Signal }) {
   const positionValue = size * s.entry;
   const tradable = s.direction !== 'HOLD' && riskPerUnit > 0;
 
+  // Lance un trade PAPIER à partir de ce signal (symbole + direction + SL/TP + taille calculée).
+  async function tradePaper() {
+    setPlacing(true);
+    setTradeErr(null);
+    setTradeMsg(null);
+    try {
+      const conns = await api.brokers();
+      const paper = conns.find((c) => c.mode === 'paper') ?? (await api.connectBroker('paper', 'paper'));
+      const qty = Number(size.toFixed(6));
+      if (!qty || qty <= 0) throw new Error('Taille de position nulle — ajuste capital/risque.');
+      await api.placeOrder(paper.id, s.asset, s.direction === 'BUY' ? 'buy' : 'sell', qty, s.stop_loss, s.take_profit_1);
+      setTradeMsg(`✅ Trade papier ouvert : ${s.direction} ${qty} ${s.asset}. Suivi dans Paper Trading / Portefeuille.`);
+    } catch (e: any) {
+      setTradeErr(e.message ?? 'Erreur lors de l’ouverture du trade');
+    } finally {
+      setPlacing(false);
+    }
+  }
+
   const vStyle: Record<string, string> = {
     strong: 'border-buy/40 bg-buy/10 text-buy',
     moderate: 'border-yellow-500/40 bg-yellow-500/10 text-yellow-200',
@@ -55,7 +78,14 @@ export function SignalCard({ s }: { s: Signal }) {
   return (
     <div className="w-full max-w-lg rounded-xl border border-border bg-surface p-5 shadow-lg">
       <div className="flex items-center justify-between">
-        <span className="font-mono text-lg font-semibold">{s.asset}</span>
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-lg font-semibold">{s.asset}</span>
+          {s.timeframe && (
+            <span className="rounded bg-background px-2 py-0.5 text-[11px] font-medium text-muted" title="Unité de temps de cette prédiction">
+              ⏱ {s.timeframe}
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           {s.high_conviction && (
             <span className="rounded-md bg-buy/20 px-2 py-1 text-[10px] font-bold text-buy" title="ADX>25 + consensus≥70% + multi-timeframe aligné">
@@ -65,6 +95,14 @@ export function SignalCard({ s }: { s: Signal }) {
           <span className={`rounded-md px-3 py-1 text-sm font-bold ${badge}`}>{s.direction}</span>
         </div>
       </div>
+      {/* HOLD utile : montre le biais sous-jacent bloqué + ce qui manque pour valider */}
+      {s.direction === 'HOLD' && m.blocked_direction && (
+        <div className="mt-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-200">
+          Signal potentiel : <b className={m.blocked_direction === 'BUY' ? 'text-buy' : 'text-sell'}>{m.blocked_direction}</b>{' '}
+          — bloqué par les filtres de fiabilité (détail dans l&apos;analyse). Mode moins strict = plus de signaux, plus de risque.
+        </div>
+      )}
+
       {s.mtf && s.mtf.total > 0 && (
         <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted">
           <span>Multi-timeframe :</span>
@@ -113,9 +151,10 @@ export function SignalCard({ s }: { s: Signal }) {
               <span>{vLabel[verdict.verdict]}</span>
               <span>{verdict.passed}/{verdict.total} critères</span>
             </div>
+            {verdict.interpretation && <p className="mt-1 text-[11px] opacity-95">{verdict.interpretation}</p>}
             {verdict.backtest && (
-              <p className="mt-1 text-[11px] opacity-90">
-                Backtest : {verdict.backtest.trades} trades · {verdict.backtest.win_rate}% réussite · PF {verdict.backtest.profit_factor} · DD {verdict.backtest.max_drawdown_pct}%
+              <p className="mt-1 text-[10px] opacity-70">
+                (Détail backtest : {verdict.backtest.trades} trades · {verdict.backtest.win_rate}% · PF {verdict.backtest.profit_factor} · DD {verdict.backtest.max_drawdown_pct}%)
               </p>
             )}
             <ul className="mt-2 space-y-0.5 text-[11px]">
@@ -151,6 +190,14 @@ export function SignalCard({ s }: { s: Signal }) {
             <Stat label="Risque/unité" value={riskPerUnit.toFixed(4)} />
           </div>
           <p className="mt-1 text-[10px] text-muted">Tu risques {riskAmount.toFixed(0)} $ ({riskPct}% du capital) si le stop est touché.</p>
+
+          {/* Ouvrir le trade directement en PAPIER (sans ressaisir dans Paper Trading). */}
+          <button onClick={tradePaper} disabled={placing}
+            className={`mt-3 w-full rounded-lg px-3 py-2 text-sm font-medium text-white disabled:opacity-50 ${s.direction === 'BUY' ? 'bg-buy' : 'bg-sell'}`}>
+            {placing ? 'Ouverture…' : `📈 Trader en paper (${s.direction} ${size.toFixed(4)} ${s.asset.split('/')[0]})`}
+          </button>
+          {tradeMsg && <p className="mt-2 text-xs text-buy">{tradeMsg} <a href="/wallet" className="underline">Voir le portefeuille →</a></p>}
+          {tradeErr && <p className="mt-2 text-xs text-sell">{tradeErr}</p>}
         </div>
       )}
 
@@ -189,6 +236,12 @@ export function SignalCard({ s }: { s: Signal }) {
         )}
       </details>
 
+      {s.id && (
+        <a href={`/signal/${s.id}`}
+          className="mt-3 block w-full rounded-lg border border-accent/40 px-3 py-2 text-center text-sm text-accent hover:bg-accent/10">
+          🔍 Consulter la prédiction complète (pourquoi {s.direction} ?) →
+        </a>
+      )}
       <p className="mt-3 text-[10px] text-muted">Timeframe : {s.timeframe} · Aide à la décision, pas un conseil en investissement.</p>
     </div>
   );

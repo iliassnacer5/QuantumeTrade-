@@ -181,6 +181,9 @@ class SqlSignalRepository:
                 timeframe=payload.get("timeframe"),
                 rationale=payload.get("rationale"),
                 position_value=payload.get("position_value"),
+                # Champs riches (agents, news, métriques, mtf, consensus…) -> JSON complet, pour que
+                # la prédiction soit consultable en détail (le "pourquoi" du BUY/SELL/HOLD).
+                details=json.dumps({k: v for k, v in payload.items() if k not in _SIGNAL_COLUMNS}),
             )
             s.add(o)
             s.commit()
@@ -305,8 +308,23 @@ class SqlBacktestRepository:
             return reports
 
 
+# Champs stockés en colonnes dédiées (le reste part dans `details` JSON).
+_SIGNAL_COLUMNS = {
+    "asset", "direction", "entry", "stop_loss", "take_profit_1", "take_profit_2",
+    "take_profit_3", "risk_reward", "confidence", "timeframe", "rationale",
+    "position_value", "created_at", "id", "tenant_id",
+}
+
+
 def _signal_payload(r: SignalORM) -> dict:
-    return {
+    # Fusion : champs riches JSON (agents, news, métriques, mtf…) + colonnes structurées.
+    out: dict = {}
+    if getattr(r, "details", None):
+        try:
+            out = json.loads(r.details)
+        except (ValueError, TypeError):
+            out = {}
+    out.update({
         "asset": r.symbol,
         "direction": r.direction,
         "entry": r.entry,
@@ -320,7 +338,8 @@ def _signal_payload(r: SignalORM) -> dict:
         "rationale": r.rationale,
         "position_value": r.position_value,
         "created_at": r.created_at.isoformat() if r.created_at else None,
-    }
+    })
+    return out
 
 
 class SqlJournalRepository:

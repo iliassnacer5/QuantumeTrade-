@@ -15,6 +15,15 @@ async def test_volume_agent_insufficient_data():
     assert "Données insuffisantes" in out.rationale
 
 @pytest.mark.asyncio
+async def test_volume_agent_neutral_without_volume():
+    """Forex spot (volume=0) : l'agent doit rester NEUTRE, pas inventer une divergence."""
+    candles = [Candle(open=100 + i, high=101 + i, low=99 + i, close=100 + i, volume=0) for i in range(25)]
+    out = await volume.run(candles)
+    assert out.score == 0.0
+    assert "neutre" in out.rationale.lower()
+
+
+@pytest.mark.asyncio
 async def test_volume_agent_basic():
     # Génération de bougies avec tendance haussière (prix et volume)
     candles = []

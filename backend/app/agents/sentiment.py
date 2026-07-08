@@ -48,27 +48,37 @@ async def run(news: list[NewsItem], fear_greed: int | None = None) -> AgentOutpu
     
     if llm.available() and news:
         try:
-            headlines = [n.headline for n in news if n.sentiment is None]
-            if headlines:
+            pending = [n for n in news if n.sentiment is None]
+            if pending:
+                numbered = "\n".join(f"{i + 1}. {n.headline}" for i, n in enumerate(pending))
                 prompt = (
-                    "Score le sentiment financier global de ces titres d'actualité de -1.0 (très baissier) "
-                    "à 1.0 (très haussier). Réponds UNIQUEMENT avec un nombre décimal."
-                    f"\nTitres: {headlines}"
+                    "Score le sentiment financier de CHAQUE titre d'actualité, de -1.0 (très baissier) "
+                    f"à 1.0 (très haussier). Réponds UNIQUEMENT avec un tableau JSON de {len(pending)} "
+                    "nombres, dans le même ordre, ex. [0.3,-0.5,0.0].\n"
+                    f"Titres :\n{numbered}"
                 )
-                resp = await llm.complete(prompt, role="fast", max_tokens=10)
-                try:
-                    llm_score = float(resp.strip())
-                    llm_score = max(-1.0, min(1.0, llm_score))
-                    for n in news:
-                        if n.sentiment is None:
-                            n.sentiment = llm_score
-                except ValueError:
-                    pass # Fallback au lexique
+                resp = await llm.complete(prompt, role="fast", max_tokens=300)
+                import json as _json
+                import re as _re
+                match = _re.search(r"\[.*?\]", resp, _re.S)
+                if match:
+                    arr = _json.loads(match.group(0))
+                    if isinstance(arr, list) and len(arr) == len(pending):
+                        # Score PAR TITRE : chaque news garde son propre sentiment (consultable).
+                        for n, v in zip(pending, arr):
+                            try:
+                                n.sentiment = max(-1.0, min(1.0, float(v)))
+                            except (TypeError, ValueError):
+                                pass
         except Exception as e:
             import logging
             logging.getLogger(__name__).warning("Erreur LLM sentiment : %s", e)
 
-    scores = [n.sentiment if n.sentiment is not None else _lexicon_score(n.headline) for n in news]
+    # Repli lexique PAR TITRE (assigné sur l'objet -> le score reste visible sur la prédiction).
+    for n in news:
+        if n.sentiment is None:
+            n.sentiment = _lexicon_score(n.headline)
+    scores = [n.sentiment for n in news]
     news_score = sum(scores) / len(scores) if scores else 0.0
 
     # Fear & Greed Index (0-100) -> contribue au biais (50 = neutre)

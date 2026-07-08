@@ -21,6 +21,46 @@ class Settings(BaseSettings):
     daily_digest_hour: int = 7
     daily_digest_enabled: bool = True
 
+    # Ingestion temps réel (WebSocket Binance, crypto, gratuit/sans clé).
+    live_ingestion_enabled: bool = True
+    live_symbols: str = "BTC/USDT,ETH/USDT,BNB/USDT,SOL/USDT,XRP/USDT,ADA/USDT,DOGE/USDT,AVAX/USDT"
+    live_interval: str = "1h"
+    # Refuse de passer un ordre si les données du marché sont synthétiques (démo).
+    block_synthetic_orders: bool = True
+    # Filtre de qualité d'entrée (principiel) : ne trader qu'en régime de tendance et setup solide.
+    entry_min_confidence: int = 62      # confiance minimale du signal
+    entry_min_adx: float = 22.0         # ADX minimal = tendance réelle (évite les ranges/whipsaw)
+    entry_min_rr: float = 1.5           # ratio risque/rendement minimal
+    entry_quality_gate: bool = True     # appliquer le filtre au live (le backtest l'applique toujours)
+    entry_trend_filter: bool = True     # anti-couteau-qui-tombe : pas de trade contre l'EMA longue
+    # Surveillance des positions papier : clôture auto au SL/TP atteint.
+    position_monitor_enabled: bool = True
+    position_monitor_interval: int = 60  # secondes
+    # Apprentissage continu : résolution auto des signaux -> affine les poids des agents.
+    learning_enabled: bool = True
+    learning_interval: int = 300  # secondes
+    # Réalisme du backtest : coûts de transaction (par côté) — sinon les résultats mentent.
+    backtest_fee_pct: float = 0.1        # frais broker (%) par côté (Binance ~0,1%)
+    backtest_slippage_pct: float = 0.05  # slippage estimé (%) par côté
+    # Stops dynamiques (backtest) — CHOIX MESURÉ par A/B test (juil. 2026, 12/12 comparaisons) :
+    # la config "tp_only" (SL/TP fixes, PAS de breakeven ni trailing) domine partout.
+    # Meilleure combinaison out-of-sample : MTF EMA × 4h -> PF 1,14, alpha +10,4% (BTC+ETH+SOL).
+    backtest_trailing_stop: bool = False
+    backtest_trailing_atr_mult: float = 3.0
+    backtest_breakeven_at_r: float = 0.0  # 0 = désactivé (le breakeven tronquait les gagnants)
+    # Alertes : la stratégie active déclenche une notification quand elle donne un signal.
+    strategy_alerts_enabled: bool = True
+    strategy_alerts_interval: int = 600   # secondes
+    # Agents experts par marché + filtre événementiel (Phase 1).
+    expert_agents_enabled: bool = True
+    event_blackout_enabled: bool = True
+    fomc_dates: str = ""            # CSV de dates ISO (YYYY-MM-DD) des réunions FOMC
+    cross_asset_ttl: int = 1800     # cache funding/BTC-lead (s)
+    # Risque au niveau portefeuille (paper) : protège le capital simulé.
+    paper_portfolio_guard: bool = True
+    paper_max_positions: int = 5           # nb max de positions ouvertes simultanées
+    paper_max_exposure_pct: float = 60.0   # exposition totale max (% du capital)
+
     # API
     api_host: str = "0.0.0.0"
     api_port: int = 8000

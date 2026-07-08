@@ -25,6 +25,12 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [live, setLive] = useState(false);
+  const [livePrices, setLivePrices] = useState<Record<string, number>>({});
+  const [sigMode, setSigMode] = useState('strict');
+
+  useEffect(() => {
+    api.signalMode().then((d) => setSigMode(d.mode)).catch(() => {});
+  }, []);
   const [selected, setSelected] = useState<Signal | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [pnl, setPnl] = useState<Portfolio | null>(null);
@@ -78,9 +84,10 @@ export default function DashboardPage() {
   }, [load]);
 
   useEffect(() => {
-    const ws = openSignalStream((sig) => {
-      setSignals((prev) => [sig, ...prev]);
-    });
+    const ws = openSignalStream(
+      (sig) => setSignals((prev) => [sig, ...prev]),
+      (candle) => setLivePrices((prev) => ({ ...prev, [candle.symbol]: candle.close })),
+    );
     if (ws) {
       ws.onopen = () => setLive(true);
       ws.onclose = () => setLive(false);
@@ -132,6 +139,16 @@ export default function DashboardPage() {
             </p>
           )}
         </div>
+        {Object.keys(livePrices).length > 0 && (
+          <div className="flex flex-wrap items-center justify-end gap-2 text-xs">
+            <span className="flex items-center gap-1 text-buy"><span className="inline-block h-2 w-2 animate-pulse rounded-full bg-buy" /> LIVE</span>
+            {['BTC/USDT', 'ETH/USDT', 'SOL/USDT'].filter((s) => livePrices[s] != null).map((s) => (
+              <span key={s} className="rounded bg-surface px-2 py-1 font-mono text-white">
+                {s.split('/')[0]} <span className="text-buy">{livePrices[s]}</span>
+              </span>
+            ))}
+          </div>
+        )}
       </header>
 
       {/* Panneaux : P&L · Risque · Heatmap */}
@@ -191,6 +208,7 @@ export default function DashboardPage() {
             { id: 'crypto', label: 'Crypto' },
             { id: 'forex', label: 'Forex' },
             { id: 'stock', label: 'Actions' },
+            { id: 'commodity', label: '🥇 Or' },
           ].map((c) => (
             <button key={c.id} onClick={() => setMktClass(c.id)}
               className={`rounded-lg border px-2.5 py-1 text-xs ${mktClass === c.id ? 'border-accent bg-accent/10 text-white' : 'border-border text-muted hover:bg-background'}`}>
@@ -244,6 +262,23 @@ export default function DashboardPage() {
               {TIMEFRAMES.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
+          <div>
+            <label className="mb-1 block text-xs text-muted" title="Curseur fiabilité ↔ quantité : strict = moins de signaux mais mieux filtrés ; agressif = plus de BUY/SELL mais plus de faux signaux">
+              Sévérité des filtres
+            </label>
+            <div className="flex gap-1">
+              {[
+                { id: 'strict', label: '🛡️ Strict' },
+                { id: 'balanced', label: '⚖️ Équilibré' },
+                { id: 'aggressive', label: '⚡ Agressif' },
+              ].map((mo) => (
+                <button key={mo.id} onClick={() => { api.setSignalMode(mo.id).then(() => setSigMode(mo.id)); }}
+                  className={`rounded-lg border px-2.5 py-2 text-xs ${sigMode === mo.id ? 'border-accent bg-accent/10 text-white' : 'border-border text-muted hover:bg-surface'}`}>
+                  {mo.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <button onClick={generate} disabled={loading}
             className="rounded-lg bg-accent px-5 py-2 font-semibold text-background hover:opacity-90 disabled:opacity-50">
             {loading ? 'Analyse...' : 'Générer un signal'}
@@ -270,16 +305,16 @@ export default function DashboardPage() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {visibleSignals.map((s, i) => (
-              <button
+              <div
                 key={s.id ?? i}
                 onClick={() => {
                   setSelected(s);
                   setAsset(s.asset);
                 }}
-                className={`text-left transition ${selected?.id === s.id ? 'ring-2 ring-accent rounded-xl' : ''}`}
+                className={`cursor-pointer text-left transition ${selected?.id === s.id ? 'ring-2 ring-accent rounded-xl' : ''}`}
               >
                 <SignalCard s={s} />
-              </button>
+              </div>
             ))}
           </div>
           {uniqueSignals.length > 6 && (

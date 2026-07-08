@@ -167,6 +167,46 @@ def support_resistance(candles: list[Candle], lookback: int = 50) -> tuple[float
     return min(c.low for c in window), max(c.high for c in window)
 
 
+def pivot_points(candles: list[Candle]) -> dict | None:
+    """Points pivots CLASSIQUES (référence pro universelle) sur la période précédente (~24 bougies).
+
+    P = (H+L+C)/3 ; R1 = 2P−L ; S1 = 2P−H ; R2 = P+(H−L) ; S2 = P−(H−L)."""
+    if len(candles) < 26:
+        return None
+    prev = candles[-25:-1]
+    h = max(c.high for c in prev)
+    low = min(c.low for c in prev)
+    cl = prev[-1].close
+    p = (h + low + cl) / 3
+    return {
+        "p": round(p, 6), "r1": round(2 * p - low, 6), "s1": round(2 * p - h, 6),
+        "r2": round(p + (h - low), 6), "s2": round(p - (h - low), 6),
+    }
+
+
+def fibonacci_levels(candles: list[Candle], lookback: int = 100) -> dict | None:
+    """Retracements de Fibonacci (38.2 / 50 / 61.8 %) du dernier swing visible.
+
+    Sens du swing : position relative du plus haut vs plus bas dans la fenêtre."""
+    if len(candles) < lookback // 2:
+        return None
+    window = candles[-lookback:]
+    hi = max(c.high for c in window)
+    lo = min(c.low for c in window)
+    if hi <= lo:
+        return None
+    hi_idx = max(range(len(window)), key=lambda i: window[i].high)
+    lo_idx = min(range(len(window)), key=lambda i: window[i].low)
+    span = hi - lo
+    up = lo_idx < hi_idx  # bas puis haut = swing haussier
+    if up:
+        levels = {"38.2": hi - 0.382 * span, "50": hi - 0.5 * span, "61.8": hi - 0.618 * span}
+    else:
+        levels = {"38.2": lo + 0.382 * span, "50": lo + 0.5 * span, "61.8": lo + 0.618 * span}
+    return {"swing": "haussier" if up else "baissier", "high": round(hi, 6), "low": round(lo, 6),
+            "levels": {k: round(v, 6) for k, v in levels.items()}}
+
+
 def obv(candles: list[Candle]) -> list[float]:
     """On-Balance Volume (OBV)."""
     if not candles:

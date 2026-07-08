@@ -14,7 +14,13 @@ logger = logging.getLogger(__name__)
 
 
 def record_signal(store, tenant_id: str, card, signal_id: str | None = None) -> None:
-    """Enregistre un signal généré (issue 'open') avec le détail des scores d'agents."""
+    """Enregistre un signal ACTIONNABLE (BUY/SELL) avec le détail des scores d'agents.
+
+    Les HOLD ne sont PAS enregistrés : sans trade, il n'y a aucune issue à apprendre — les inscrire
+    ne ferait que gonfler indéfiniment le compteur « ouverts » (ils ne se résolvent jamais)."""
+    direction = card.direction.value if hasattr(card.direction, "value") else str(card.direction)
+    if direction == "HOLD":
+        return
     try:
         agent_scores = {a["name"]: a["score"] for a in (getattr(card, "agents", None) or [])}
         store.journal.add(
@@ -22,7 +28,7 @@ def record_signal(store, tenant_id: str, card, signal_id: str | None = None) -> 
             {
                 "signal_id": signal_id,
                 "symbol": card.asset,
-                "direction": card.direction.value if hasattr(card.direction, "value") else str(card.direction),
+                "direction": direction,
                 "outcome": "open",
                 "pnl": None,
                 "agent_scores": agent_scores,
@@ -44,9 +50,17 @@ def recent_entries(store, tenant_id: str, limit: int = 200) -> list[dict]:
         return []
 
 
-def compute_multipliers(store, tenant_id: str) -> dict[str, float]:
-    """Multiplicateurs de poids par agent, dérivés de l'historique (taux de réussite)."""
-    return compute_weight_multipliers(recent_entries(store, tenant_id))
+def compute_multipliers(store, tenant_id: str, market: str | None = None) -> dict[str, float]:
+    """Multiplicateurs de poids par agent, dérivés de l'historique (taux de réussite).
+
+    `market` (crypto|forex|stock) : apprentissage SÉPARÉ par marché — un agent mauvais en forex ne
+    pénalise plus son score crypto. Rétrocompatible : sans `market`, on apprend sur tout l'historique.
+    """
+    entries = recent_entries(store, tenant_id)
+    if market:
+        from app.data import markets
+        entries = [e for e in entries if markets.asset_class(e.get("symbol", "")) == market]
+    return compute_weight_multipliers(entries)
 
 
 def close_trade(store, tenant_id: str, entry_id: str, outcome: str, pnl: float | None) -> dict | None:
@@ -54,6 +68,44 @@ def close_trade(store, tenant_id: str, entry_id: str, outcome: str, pnl: float |
     if outcome not in {"win", "loss", "breakeven", "open"}:
         raise ValueError("issue invalide")
     return store.journal.update_outcome(tenant_id, entry_id, outcome=outcome, pnl=pnl)
+
+
+async def auto_resolve(store, tenant_id: str) -> int:
+    """Résout automatiquement les signaux 'open' dont le prix a touché le SL/TP -> win/loss.
+
+    C'est le moteur de l'apprentissage continu : sans clic manuel, chaque signal directionnel finit
+    par recevoir une issue réelle (rejeu du prix via data/replay), ce qui alimente les
+    multiplicateurs de fiabilité par agent. Retourne le nombre d'entrées résolues sur ce passage."""
+    from app.data import replay
+
+    resolved = 0
+    for e in recent_entries(store, tenant_id, limit=500):
+        if e.get("outcome") != "open":
+            continue
+        sig_id = e.get("signal_id")
+        if not sig_id:
+            continue
+        stored = store.signals.get(sig_id)
+        if stored is None:
+            continue
+        p = stored.payload or {}
+        direction = p.get("direction")
+        entry, sl, tp = p.get("entry"), p.get("stop_loss"), p.get("take_profit_1")
+        if direction in (None, "HOLD") or not entry or sl is None:
+            continue
+        try:
+            outcome, exit_price, _ = await replay.replay_outcome(
+                p.get("asset", e.get("symbol")), direction, entry, sl, tp, p.get("created_at"),
+            )
+        except Exception as exc:  # noqa: BLE001 — l'apprentissage ne doit jamais casser
+            logger.warning("Auto-résolution %s échouée (%s)", sig_id, exc)
+            continue
+        if outcome in ("won", "lost"):
+            mapped = "win" if outcome == "won" else "loss"
+            pnl = (exit_price - entry) if str(direction).lower() == "buy" else (entry - exit_price)
+            close_trade(store, tenant_id, e["id"], mapped, round(pnl, 4))
+            resolved += 1
+    return resolved
 
 
 def stats(entries: list[dict]) -> dict:
@@ -66,7 +118,9 @@ def stats(entries: list[dict]) -> dict:
     return {
         "total_entries": len(entries),
         "closed": n,
-        "open": len([e for e in entries if e.get("outcome") == "open"]),
+        # On ne compte que les vrais trades en attente (BUY/SELL) ; les anciens HOLD enregistrés
+        # ne se résolvent jamais et ne doivent pas gonfler le compteur.
+        "open": len([e for e in entries if e.get("outcome") == "open" and e.get("direction") != "HOLD"]),
         "wins": len(wins),
         "losses": len(losses),
         "win_rate": round(len(wins) / n * 100, 1) if n else 0.0,

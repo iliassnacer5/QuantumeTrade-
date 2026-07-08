@@ -39,6 +39,8 @@ class OrderRequest(BaseModel):
     symbol: str
     side: str  # buy | sell
     qty: float
+    stop_loss: float | None = None
+    take_profit: float | None = None
 
 
 @router.post("/brokers", status_code=status.HTTP_201_CREATED)
@@ -92,7 +94,8 @@ async def place_order(
         _require_live_allowed(user, store)
     try:
         order = await execution_service.place_order(
-            store, user.tenant_id, conn_id=body.conn_id, symbol=body.symbol, side=body.side, qty=body.qty
+            store, user.tenant_id, conn_id=body.conn_id, symbol=body.symbol, side=body.side,
+            qty=body.qty, stop_loss=body.stop_loss, take_profit=body.take_profit,
         )
     except execution_service.ExecutionError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
@@ -106,3 +109,36 @@ async def orders(
     store: AppStore = Depends(store_dep),
 ) -> list[dict]:
     return execution_service.list_orders(store, user.tenant_id)
+
+
+@router.post("/orders/{order_id}/close")
+async def close_order(
+    order_id: str,
+    user: User = Depends(current_user),
+    store: AppStore = Depends(store_dep),
+) -> dict:
+    """Clôture manuelle d'une position papier au prix du marché (P&L réalisé immédiat)."""
+    try:
+        result = await execution_service.close_order_manual(store, user.tenant_id, order_id)
+    except execution_service.ExecutionError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    audit.record("execution.order_closed_manual", actor=user.email, tenant_id=user.tenant_id,
+                 detail=f"{result['outcome']} {result['symbol']} pnl={result.get('realized_pnl')}")
+    return result
+
+
+@router.post("/orders/{order_id}/check")
+async def check_order(
+    order_id: str,
+    user: User = Depends(current_user),
+    store: AppStore = Depends(store_dep),
+) -> dict:
+    """Vérifie si le trade papier a gagné (TP) / perdu (SL) / est encore ouvert, depuis l'entrée."""
+    try:
+        result = await execution_service.check_order_outcome(store, user.tenant_id, order_id)
+    except execution_service.ExecutionError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    if result.get("outcome") in {"won", "lost"}:
+        audit.record("execution.order_closed", actor=user.email, tenant_id=user.tenant_id,
+                     detail=f"{result['outcome']} {result['symbol']} pnl={result.get('realized_pnl')}")
+    return result

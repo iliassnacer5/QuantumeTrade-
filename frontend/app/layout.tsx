@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { NavBar } from '@/components/NavBar';
+import { Disclaimer } from '@/components/Disclaimer';
 
 export const metadata: Metadata = {
   title: 'Quantum Trade AI',
@@ -10,9 +11,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr" className="dark">
-      <body>
+      <body className="flex min-h-screen flex-col">
         <NavBar />
-        {children}
+        <div className="flex-1">{children}</div>
+        <Disclaimer />
       </body>
     </html>
   );

@@ -11,5 +11,13 @@ def _test_env():
     settings = get_settings()
     settings.rate_limit_enabled = False
     settings.use_in_memory_db = True
+    settings.live_ingestion_enabled = False  # jamais de WebSocket réelle pendant les tests
+    settings.position_monitor_enabled = False  # pas de boucle de surveillance en test
+    settings.learning_enabled = False  # pas de boucle d'apprentissage de fond en test
+    settings.strategy_alerts_enabled = False  # pas de boucle d'alertes en test
+    settings.paper_portfolio_guard = False  # tests déterministes (gros lots autorisés)
+    settings.expert_agents_enabled = False  # path générique par défaut (testé séparément avec mocks)
+    settings.event_blackout_enabled = False  # pas d'appel calendrier réseau en test
+    settings.block_synthetic_orders = False  # tests déterministes (pas de dépendance réseau)
     reset_store()
     yield

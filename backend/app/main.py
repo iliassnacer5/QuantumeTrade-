@@ -31,6 +31,8 @@ from app.api import (
     marketplace,
     i18n,
     branding,
+    strategies,
+    wallet,
 )
 from app.core.config import get_settings
 from app.core.observability import ObservabilityMiddleware, init_sentry
@@ -52,11 +54,43 @@ async def lifespan(_app: FastAPI):
     get_store()
     await bus.init_bus()
 
+    # Durcissement : alerte si le secret JWT est celui par défaut (critique hors dev).
+    s = get_settings()
+    if "change-me" in (s.secret_key or ""):
+        logging.getLogger(__name__).warning(
+            "⚠️ SECRET_KEY par défaut détecté — générez un secret fort avant toute mise en production "
+            "(openssl rand -hex 32) et réduisez ACCESS_TOKEN_EXPIRE_MINUTES à 60."
+        )
+
+    # Ingestion temps réel (WebSocket Binance) : chauffe le cache + pousse les prix en live.
+    if get_settings().live_ingestion_enabled:
+        from app.realtime import market_stream
+
+        await market_stream.start()
+
     daily_task = None
     if get_settings().daily_digest_enabled:
         from app.services.scheduler import daily_loop
 
         daily_task = asyncio.create_task(daily_loop())
+
+    positions_task = None
+    if get_settings().position_monitor_enabled:
+        from app.services.scheduler import positions_loop
+
+        positions_task = asyncio.create_task(positions_loop())
+
+    learning_task = None
+    if get_settings().learning_enabled:
+        from app.services.scheduler import learning_loop
+
+        learning_task = asyncio.create_task(learning_loop())
+
+    alerts_task = None
+    if get_settings().strategy_alerts_enabled:
+        from app.services.scheduler import strategy_alerts_loop
+
+        alerts_task = asyncio.create_task(strategy_alerts_loop())
 
     logging.getLogger(__name__).info(
         "Démarrage OK (in_memory=%s, redis=%s, digest=%s)",
@@ -67,6 +101,16 @@ async def lifespan(_app: FastAPI):
     yield
     if daily_task:
         daily_task.cancel()
+    if positions_task:
+        positions_task.cancel()
+    if learning_task:
+        learning_task.cancel()
+    if alerts_task:
+        alerts_task.cancel()
+    if get_settings().live_ingestion_enabled:
+        from app.realtime import market_stream
+
+        await market_stream.stop()
     await bus.shutdown_bus()
 
 
@@ -100,6 +144,8 @@ app.include_router(billing.router)
 app.include_router(audit.router)
 app.include_router(ws.router)
 app.include_router(backtest.router)
+app.include_router(strategies.router)
+app.include_router(wallet.router)
 app.include_router(agents.router)
 app.include_router(plan.router)
 app.include_router(copilot.router)

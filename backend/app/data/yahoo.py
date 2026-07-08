@@ -19,9 +19,15 @@ _INTERVAL = {"5m": "5m", "15m": "15m", "1h": "1h", "4h": "1h", "1d": "1d"}
 _RANGE = {"5m": "5d", "15m": "1mo", "1h": "3mo", "4h": "3mo", "1d": "1y"}
 
 
+# Métaux précieux -> futures COMEX Yahoo (réels, AVEC volume, sans clé).
+_COMMODITY_MAP = {"XAU/USD": "GC=F", "XAG/USD": "SI=F", "XPT/USD": "PL=F", "XPD/USD": "PA=F"}
+
+
 def to_yahoo_symbol(symbol: str) -> str:
-    """Convertit un symbole interne en symbole Yahoo (forex -> 'EURUSD=X', action -> ticker)."""
+    """Convertit un symbole interne en symbole Yahoo (forex -> 'EURUSD=X', or -> 'GC=F', action -> ticker)."""
     s = symbol.upper()
+    if s in _COMMODITY_MAP:
+        return _COMMODITY_MAP[s]
     if "/" in s:  # forex (les paires crypto passent par Binance, pas ici)
         base, quote = s.split("/", 1)
         return f"{base}{quote}=X"

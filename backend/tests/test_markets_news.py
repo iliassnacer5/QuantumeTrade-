@@ -64,9 +64,13 @@ async def test_daily_picks_structure():
     from app.services import signal_service
     picks = await signal_service.daily_picks(per_market=1, classes=("crypto",))
     assert isinstance(picks, list)
-    for p in picks:  # chaque pick est haute-conviction + backtest fiable
-        assert p["backtest"]["win_rate"] > 55 and p["backtest"]["profit_factor"] > 1.3
-        assert p["direction"] in ("BUY", "SELL") and p["adx"] > 25
+    for p in picks:
+        assert p["direction"] in ("BUY", "SELL")
+        assert p["tier"] in ("confirmed", "watch")
+        # Un pick 'confirmed' DOIT respecter les critères stricts ; un 'watch' est juste à surveiller.
+        if p["tier"] == "confirmed":
+            assert p["high_conviction"] and p["adx"] > 25
+            assert p["backtest"]["win_rate"] > 55 and p["backtest"]["profit_factor"] > 1.3
 
 
 def test_scan_endpoint():

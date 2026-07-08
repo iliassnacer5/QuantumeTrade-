@@ -71,3 +71,119 @@ async def reports(
     store: AppStore = Depends(store_dep),
 ) -> list[BacktestReport]:
     return store.backtests.list_for_tenant(user.tenant_id, limit=20)
+
+
+_EXPERT_SYMBOLS = {
+    "crypto": ["BTC/USDT", "ETH/USDT", "SOL/USDT"],
+    "forex": ["EUR/USD", "GBP/USD", "USD/JPY"],
+    "stock": ["AAPL", "MSFT", "NVDA"],
+    "commodity": ["XAU/USD", "XAG/USD"],
+}
+
+
+# Les 3 configurations de sortie de l'A/B test (cf. PLAN_FINALISATION §A.1).
+_EXIT_CONFIGS = {
+    "tp_only": {"trailing": False, "breakeven_r": 0.0, "staged_tp": False},   # (a) TP 2,5×ATR seul
+    "be_1_5r": {"trailing": True, "trailing_mult": 3.0, "breakeven_r": 1.5, "staged_tp": False},  # (b)
+    "staged": {"trailing": True, "trailing_mult": 3.0, "breakeven_r": 1.5, "staged_tp": True},    # (c)
+    "current": {},  # réglages globaux actuels (référence)
+}
+
+
+@router.post("/exit-ab")
+async def exit_ab_test(
+    strategy: str = "mtf_ema",
+    timeframe: str = "1h",
+    _user: User = Depends(require_feature("backtesting")),
+) -> dict:
+    """A/B test des sorties : walk-forward des 4 configs (TP seul, BE 1,5R, TP étagé, actuelle)
+    sur plusieurs symboles. Classement par expectancy/alpha -> la meilleure config gagne."""
+    from app.backtest.walkforward import walk_forward as run_wf
+
+    symbols = ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
+    results = []
+    for name, ec in _EXIT_CONFIGS.items():
+        agg = {"config": name, "symbols": []}
+        for sym in symbols:
+            try:
+                r = await run_wf(sym, timeframe, folds=4, strategy_id=strategy, exit_config=ec or None)
+                agg["symbols"].append({"symbol": sym, "win": r["avg_win_rate"], "pf": r["avg_profit_factor"],
+                                       "alpha": r["avg_alpha_pct"], "trades": r["total_trades"]})
+            except Exception:  # noqa: BLE001
+                continue
+        n = len(agg["symbols"]) or 1
+        agg["avg_pf"] = round(sum(x["pf"] for x in agg["symbols"]) / n, 2)
+        agg["avg_alpha"] = round(sum(x["alpha"] for x in agg["symbols"]) / n, 2)
+        agg["avg_win"] = round(sum(x["win"] for x in agg["symbols"]) / n, 1)
+        results.append(agg)
+    results.sort(key=lambda a: (a["avg_alpha"], a["avg_pf"]), reverse=True)
+    best = results[0] if results else None
+    return {"strategy": strategy, "timeframe": timeframe, "results": results, "best": best,
+            "note": f"Meilleure config sorties : {best['config']} (alpha {best['avg_alpha']}%, PF {best['avg_pf']})" if best else ""}
+
+
+@router.post("/expert-validation")
+async def expert_validation(
+    market: str = "crypto",
+    timeframe: str = "1h",
+    _user: User = Depends(require_feature("backtesting")),
+) -> dict:
+    """Mesure l'impact des agents experts par marché (walk-forward multi-agents multi-symboles)."""
+    from app.backtest.walkforward import validate_expert_agent
+
+    symbols = _EXPERT_SYMBOLS.get(market, _EXPERT_SYMBOLS["crypto"])
+    return await validate_expert_agent(market, symbols, timeframe=timeframe)
+
+
+@router.post("/walk-forward")
+async def walk_forward(
+    symbol: str = "BTC/USDT",
+    timeframe: str = "1h",
+    folds: int = 4,
+    _user: User = Depends(require_feature("backtesting")),
+) -> dict:
+    """Validation out-of-sample : backteste `symbol` sur plusieurs périodes successives + verdict."""
+    from app.backtest.walkforward import walk_forward as run_wf
+
+    return await run_wf(symbol, timeframe, folds=max(2, min(folds, 6)))
+
+
+# Univers évalué pour le track record (cryptos majeures, données réelles via Binance).
+_TRACK_SYMBOLS = ("BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT")
+
+
+@router.get("/track-record")
+async def track_record(
+    refresh: bool = False,
+    user: User = Depends(require_feature("backtesting")),
+    store: AppStore = Depends(store_dep),
+) -> dict:
+    """Track record HONNÊTE : validation walk-forward (out-of-sample) + perf réellement observée.
+
+    - `validation` : robustesse de la stratégie sur l'historique réel, par symbole (mis en cache).
+    - `observed` : performance des signaux réellement enregistrés dans le Journal (forward, limitée).
+    Toujours accompagné de l'avertissement : les performances passées ne préjugent pas du futur.
+    """
+    from app.backtest.walkforward import walk_forward as run_wf
+    from app.services import journal_service
+
+    today = datetime.now(UTC).date().isoformat()
+    cached = store.records.get("track_record", today)
+    if cached and not refresh:
+        validation = cached["validation"]
+    else:
+        validation = [await run_wf(sym, "1h", folds=4) for sym in _TRACK_SYMBOLS]
+        store.records.put("track_record", today, {"date": today, "validation": validation})
+
+    robust = sum(1 for v in validation if v["verdict"] == "robuste")
+    observed = journal_service.stats(journal_service.recent_entries(store, user.tenant_id))
+    return {
+        "date": today,
+        "validation": validation,
+        "summary": {"symbols": len(validation), "robust": robust},
+        "observed": observed,
+        "disclaimer": (
+            "Validation sur données historiques réelles. Les performances passées ne préjugent PAS "
+            "des résultats futurs. Aide à la décision, pas un conseil en investissement."
+        ),
+    }

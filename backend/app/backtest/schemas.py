@@ -58,4 +58,9 @@ class BacktestReport(BaseModel):
     metrics: BacktestMetrics
     trades: list[BacktestTrade]
     equity_curve: list[BacktestEquityPoint]
+    # Honnêteté : performance d'un simple « acheter & garder » sur la même période + surperformance.
+    benchmark_pnl_pct: float = 0.0
+    alpha_pct: float = 0.0  # total_pnl_pct - benchmark_pnl_pct (la valeur réellement ajoutée)
+    # Coûts de transaction appliqués (frais + slippage, par côté, en %).
+    cost_pct_per_side: float = 0.0
     created_at: datetime = Field(default_factory=datetime.utcnow)

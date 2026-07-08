@@ -31,11 +31,14 @@ STOCKS = [
     "BABA", "ORCL", "CRM", "ADBE", "PYPL", "UBER", "COIN", "PLTR", "SHOP", "SQ",
 ]
 
-_LABELS = {"crypto": "Crypto", "forex": "Forex", "stock": "Actions"}
+# --- Métaux précieux (or spot & co, données futures COMEX via Yahoo) ---
+COMMODITIES = ["XAU/USD", "XAG/USD", "XPT/USD", "XPD/USD"]
+
+_LABELS = {"crypto": "Crypto", "forex": "Forex", "stock": "Actions", "commodity": "Or & Métaux"}
 
 
 def catalog() -> dict[str, list[str]]:
-    return {"crypto": CRYPTO, "forex": FOREX, "stock": STOCKS}
+    return {"crypto": CRYPTO, "forex": FOREX, "stock": STOCKS, "commodity": COMMODITIES}
 
 
 def all_symbols() -> list[dict]:
@@ -56,7 +59,7 @@ def search(query: str | None = None, asset_class: str | None = None, limit: int 
 
 
 def is_known(symbol: str) -> bool:
-    return symbol.upper() in {s.upper() for s in (CRYPTO + FOREX + STOCKS)}
+    return symbol.upper() in {s.upper() for s in (CRYPTO + FOREX + STOCKS + COMMODITIES)}
 
 
 def normalize(symbol: str) -> str:

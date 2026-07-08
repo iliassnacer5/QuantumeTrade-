@@ -172,6 +172,43 @@ def analyze(candles: list[Candle]) -> dict:
             signals.append(-0.2)
             notes.append("Prix proche de la résistance (rejet possible)")
 
+    # --- Points pivots (référence pro : niveaux surveillés par tout le marché) ---
+    piv = ind.pivot_points(candles)
+    if piv:
+        metrics["pivots"] = piv
+        if price > piv["r1"]:
+            signals.append(0.2)
+            notes.append(f"Prix au-dessus du pivot R1 ({piv['r1']:.4g}) : momentum haussier")
+        elif price < piv["s1"]:
+            signals.append(-0.2)
+            notes.append(f"Prix sous le pivot S1 ({piv['s1']:.4g}) : momentum baissier")
+        elif abs(price - piv["p"]) / price < 0.002:
+            notes.append(f"Prix sur le pivot central ({piv['p']:.4g}) : zone de décision")
+
+    # --- Retracements de Fibonacci (zones de rebond institutionnelles) ---
+    fib = ind.fibonacci_levels(candles)
+    if fib:
+        metrics["fibonacci"] = fib
+        lv = fib["levels"]
+        # Prix dans la zone d'or (entre 50% et 61.8%) d'un swing = zone de reprise classique.
+        golden_lo, golden_hi = sorted([lv["50"], lv["61.8"]])
+        if golden_lo <= price <= golden_hi:
+            bias = 0.25 if fib["swing"] == "haussier" else -0.25
+            signals.append(bias)
+            notes.append(f"Prix dans la zone d'or Fibonacci (50-61.8%) du swing {fib['swing']}")
+
+    # --- Position vs plus haut / plus bas 52 périodes (contexte long terme) ---
+    if len(candles) >= 52:
+        w52 = candles[-52:]
+        hi52, lo52 = max(c.high for c in w52), min(c.low for c in w52)
+        if hi52 > lo52:
+            pos52 = (price - lo52) / (hi52 - lo52) * 100
+            metrics["pos_52"] = round(pos52, 1)
+            if pos52 > 95:
+                notes.append("Prix au plus haut 52 périodes (force, mais étendu)")
+            elif pos52 < 5:
+                notes.append("Prix au plus bas 52 périodes (faiblesse, mais possible capitulation)")
+
     # --- Agrégation ---
     n = max(len(signals), 1)
     raw = sum(signals) / n

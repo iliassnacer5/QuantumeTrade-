@@ -81,14 +81,27 @@ def test_copilot_stream_sse():
 
 
 # ---------------- Journal ----------------
-def test_journal_lifecycle():
+def test_journal_lifecycle(monkeypatch):
+    from app.data import markets
+    from app.domain.indicators import Candle
+
+    # Tendance haussière franche -> signal directionnel garanti (seuls les BUY/SELL créent une
+    # entrée journal ; les HOLD ne sont plus enregistrés car sans trade il n'y a rien à apprendre).
+    async def _uptrend(symbol, interval="1h", limit=200):  # noqa: ANN001
+        out, p = [], 100.0
+        for _ in range(max(limit, 210)):
+            p *= 1.004
+            out.append(Candle(p * 0.997, p * 1.006, p * 0.996, p, 1000.0))
+        return out
+    monkeypatch.setattr(markets, "load_candles", _uptrend)
+
     client = TestClient(app)
     h = _register(client)
     _upgrade(client, h, "pro")
-    # Génère un signal -> crée une entrée de journal (issue 'open')
+    client.post("/api/signals/mode?mode=aggressive", headers=h)
     client.post("/api/signals/generate", json={"asset": "BTC/USDT", "timeframe": "swing", "notify": False}, headers=h)
     entries = client.get("/api/journal", headers=h).json()
-    assert len(entries) >= 1
+    assert len(entries) >= 1, "un signal directionnel doit créer une entrée journal"
     entry_id = entries[0]["id"]
     # Clôture le trade en gain
     r = client.post(f"/api/journal/{entry_id}/close", json={"outcome": "win", "pnl": 120.5}, headers=h)

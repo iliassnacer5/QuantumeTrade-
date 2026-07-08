@@ -10,6 +10,7 @@ const CLASSES = [
   { id: 'crypto', label: 'Crypto' },
   { id: 'forex', label: 'Forex' },
   { id: 'stock', label: 'Actions' },
+  { id: 'commodity', label: '🥇 Or & Métaux' },
 ];
 const TIMEFRAMES = [
   { tf: 'scalp', interval: '5m', label: 'Scalp (5m)' },
@@ -34,6 +35,8 @@ export default function ScannerPage() {
   const [sessions, setSessions] = useState<{ id: string; label: string; window_utc: string; open: boolean; symbol_count: number }[]>([]);
   const [utcTime, setUtcTime] = useState('');
   const [session, setSession] = useState<string>('');
+  const [tradingSym, setTradingSym] = useState<string | null>(null);
+  const [tradeMsg, setTradeMsg] = useState<string | null>(null);
 
   const interval = useMemo(() => TIMEFRAMES.find((t) => t.tf === tf)?.interval ?? '1h', [tf]);
 
@@ -63,6 +66,32 @@ export default function ScannerPage() {
       setError(e.message);
     } finally {
       setScanning(false);
+    }
+  }
+
+  // Lance un trade PAPIER directement depuis une carte de scan : génère le signal complet (SL/TP)
+  // puis ouvre la position. Refuse si le signal consolidé est HOLD (cohérent avec l'analyse).
+  async function tradeFromScan(sym: string) {
+    setTradingSym(sym);
+    setError(null);
+    setTradeMsg(null);
+    try {
+      const sig = await api.generate(sym, tf, false);
+      if (sig.direction === 'HOLD') {
+        setError(`${sym} : signal consolidé HOLD — pas de trade (les agents divergent).`);
+        return;
+      }
+      const conns = await api.brokers();
+      const paper = conns.find((c) => c.mode === 'paper') ?? (await api.connectBroker('paper', 'paper'));
+      const riskPerUnit = Math.abs(sig.entry - sig.stop_loss);
+      const qty = riskPerUnit > 0 ? Number(((10000 * 0.01) / riskPerUnit).toFixed(6)) : 0;
+      if (!qty) { setError('Taille nulle — niveaux invalides.'); return; }
+      await api.placeOrder(paper.id, sym, sig.direction === 'BUY' ? 'buy' : 'sell', qty, sig.stop_loss, sig.take_profit_1);
+      setTradeMsg(`✅ ${sig.direction} ${qty} ${sym} ouvert en paper (1% de risque). Voir le portefeuille.`);
+    } catch (e: any) {
+      setError(e.message?.includes('402') ? 'Limite du plan atteinte.' : e.message);
+    } finally {
+      setTradingSym(null);
     }
   }
 
@@ -173,27 +202,59 @@ export default function ScannerPage() {
       {/* Résultats du scan */}
       {scanned && (
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-white">
+          <h2 className="flex flex-wrap items-center gap-2 text-lg font-semibold text-white">
             Résultats du scan ({results.length}{results.length ? ` · ${results.filter((r) => r.high_conviction).length} haute-conviction` : ''})
+            <span className="rounded bg-surface px-2 py-0.5 text-xs font-normal text-muted">
+              ⏱ {TIMEFRAMES.find((t) => t.tf === tf)?.label ?? tf}
+            </span>
           </h2>
           {results.length === 0 && <p className="text-muted">Aucun symbole ne correspond. Décoche « haute-conviction » pour voir tout le classement.</p>}
+          {tradeMsg && <p className="text-sm text-buy">{tradeMsg} <a href="/wallet" className="underline">Portefeuille →</a></p>}
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
             {results.map((r) => (
-              <button key={r.symbol} onClick={() => analyze(r.symbol)}
-                className={`rounded-xl border bg-surface p-4 text-left transition hover:border-accent ${r.high_conviction ? 'border-buy/40' : 'border-border'}`}>
+              <div key={r.symbol}
+                className={`rounded-xl border bg-surface p-4 ${r.high_conviction ? 'border-buy/40' : 'border-border'}`}>
                 <div className="flex items-center justify-between">
                   <span className="font-mono font-semibold text-white">{r.symbol}</span>
-                  <span className={`rounded px-2 py-0.5 text-xs font-bold ${r.direction === 'BUY' ? 'bg-buy/20 text-buy' : r.direction === 'SELL' ? 'bg-sell/20 text-sell' : 'bg-border text-muted'}`}>{r.direction}</span>
+                  {r.consolidated ? (
+                    <span className={`rounded px-2 py-0.5 text-xs font-bold ${r.direction === 'BUY' ? 'bg-buy/20 text-buy' : r.direction === 'SELL' ? 'bg-sell/20 text-sell' : 'bg-border text-muted'}`}>{r.direction}</span>
+                  ) : (
+                    <span className="rounded bg-border px-2 py-0.5 text-xs text-muted" title="Lead technique — clique Analyser pour la décision complète">⏳ à analyser</span>
+                  )}
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-1 text-xs text-muted">
                   <span>Prix : <span className="text-white">{r.price}</span></span>
                   <span>ADX : <span className="text-white">{r.adx}</span></span>
                   <span>RSI : <span className="text-white">{r.rsi}</span></span>
                   <span>Conviction : <span className="text-white">{r.conviction}</span></span>
+                  {r.mtf_total != null && (
+                    <span>Multi-TF : <span className={r.mtf_aligned >= 2 ? 'text-buy' : 'text-yellow-300'}>{r.mtf_aligned}/{r.mtf_total}</span></span>
+                  )}
                 </div>
                 <p className="mt-1 text-xs text-gray-400">{r.trend}</p>
-                {r.high_conviction && <span className="mt-2 inline-block rounded bg-buy/20 px-2 py-0.5 text-[10px] font-bold text-buy">★ HAUTE CONVICTION</span>}
-              </button>
+                {/* Verdict affiché UNIQUEMENT pour les candidats consolidés (= identiques à l'analyse). */}
+                {r.consolidated && r.high_conviction ? (
+                  <span className="mt-2 inline-block rounded bg-buy/20 px-2 py-0.5 text-[10px] font-bold text-buy">★ HAUTE CONVICTION (= analyse détaillée)</span>
+                ) : r.consolidated && r.direction !== 'HOLD' ? (
+                  <span className="mt-2 inline-block rounded bg-yellow-500/15 px-2 py-0.5 text-[10px] font-bold text-yellow-300">
+                    Signal {r.direction} — sans haute-conviction
+                  </span>
+                ) : !r.consolidated ? (
+                  <span className="mt-2 inline-block rounded bg-border px-2 py-0.5 text-[10px] text-muted">Lead technique — clique « Analyser » pour la décision</span>
+                ) : null}
+                <div className="mt-3 flex gap-2">
+                  <button onClick={() => analyze(r.symbol)}
+                    className="flex-1 rounded-lg border border-border px-2 py-1 text-xs text-white hover:border-accent">
+                    Analyser
+                  </button>
+                  {r.consolidated && r.direction !== 'HOLD' && (
+                    <button onClick={() => tradeFromScan(r.symbol)} disabled={tradingSym === r.symbol}
+                      className={`flex-1 rounded-lg px-2 py-1 text-xs font-medium text-white disabled:opacity-50 ${r.direction === 'BUY' ? 'bg-buy' : 'bg-sell'}`}>
+                      {tradingSym === r.symbol ? '…' : '📈 Trader en paper'}
+                    </button>
+                  )}
+                </div>
+              </div>
             ))}
           </div>
         </section>

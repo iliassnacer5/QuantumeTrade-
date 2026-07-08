@@ -59,22 +59,34 @@ async def generate(
     )
 
 
+_DAILY_TF = {"scalp": "5m", "intraday": "15m", "swing": "1h", "position": "4h", "daily": "1d"}
+
+
 @router.get("/daily-picks")
 async def daily_picks(
     refresh: bool = False,
+    timeframe: str = "1h",
     user: User = Depends(require_feature("backtesting")),
     store: AppStore = Depends(store_dep),
 ) -> dict:
-    """Sélection du jour : trades haute-conviction confirmés par backtest, par marché (mis en cache)."""
+    """Sélection du jour par marché (graduée, mise en cache par timeframe).
+
+    `timeframe` : 5m | 15m | 1h | 4h | 1d (ou alias scalp/intraday/swing/position/daily).
+    Les unités plus longues (4h, 1d) filtrent le bruit -> signaux généralement plus fiables.
+    """
     from datetime import UTC, datetime
 
+    tf = _DAILY_TF.get(timeframe, timeframe)
     today = datetime.now(UTC).date().isoformat()
-    cached = store.records.get("daily_picks", today)
+    # Le 1h garde la clé historique (compat digest) ; les autres TF ont leur propre cache.
+    key = today if tf == "1h" else f"{today}:{tf}"
+    cached = store.records.get("daily_picks", key)
     if cached and not refresh:
         return cached
-    picks = await signal_service.daily_picks()
+    picks = await signal_service.daily_picks(timeframe=tf)
     return store.records.put(
-        "daily_picks", today, {"date": today, "picks": picks, "generated_at": datetime.now(UTC).isoformat()},
+        "daily_picks", key,
+        {"date": today, "timeframe": tf, "picks": picks, "generated_at": datetime.now(UTC).isoformat()},
     )
 
 
@@ -98,11 +110,13 @@ async def scan(
     limit: int = 20,
     high_conviction_only: bool = False,
     session: str | None = None,
-    _user: User = Depends(current_user),
+    user: User = Depends(current_user),
+    store: AppStore = Depends(store_dep),
 ) -> dict:
     """Scanner de marché : classe les symboles par conviction (flag haute-conviction ADX>25).
 
     `session` (asian|london|newyork) restreint l'univers aux paires liquides de cette session.
+    Le scanner utilise TON contexte (exposition + apprentissage) -> ★ identique à ton analyse.
     """
     universe = None
     if session:
@@ -113,6 +127,8 @@ async def scan(
     results = await signal_service.scan_market(
         asset_class=asset_class, timeframe=timeframe, limit=min(limit, 40),
         high_conviction_only=high_conviction_only, symbols=universe,
+        confirm_mtf=True,  # consolidation = même décision (et même contexte) que ton analyse
+        user=user, store=store,
     )
     return {
         "count": len(results),
@@ -129,6 +145,107 @@ async def clear_signals(
     """Vide l'historique des signaux du tenant (repartir propre)."""
     deleted = store.signals.clear_for_tenant(user.tenant_id)
     return {"deleted": deleted}
+
+
+@router.post("/mode")
+async def set_signal_mode(
+    mode: str = "strict",
+    user: User = Depends(current_user),
+    store: AppStore = Depends(store_dep),
+) -> dict:
+    """Choisit la sévérité des filtres : strict (fiabilité max) | balanced | aggressive (plus de signaux).
+
+    Curseur fiabilité <-> quantité : moins strict = plus de BUY/SELL mais plus de faux signaux."""
+    from app.signal_engine.quality import MODES
+
+    if mode not in MODES:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"mode invalide (choix : {', '.join(MODES)})")
+    store.records.put("signal_mode", user.tenant_id, {"mode": mode}, tenant_id=user.tenant_id)
+    return {"mode": mode, "thresholds": MODES[mode]}
+
+
+@router.get("/mode")
+async def get_signal_mode(
+    user: User = Depends(current_user),
+    store: AppStore = Depends(store_dep),
+) -> dict:
+    from app.signal_engine.quality import MODES
+
+    mode = (store.records.get("signal_mode", user.tenant_id) or {}).get("mode", "strict")
+    return {"mode": mode, "thresholds": MODES.get(mode, MODES["strict"])}
+
+
+@router.get("/track-record")
+async def signals_track_record(
+    user: User = Depends(current_user),
+    store: AppStore = Depends(store_dep),
+) -> dict:
+    """Track record HONNÊTE des prédictions : issues réelles observées + ce que les filtres t'ont ÉVITÉ.
+
+    - `observed` : trades résolus (gagnés/perdus, via rejeu auto du Journal).
+    - `avoided`  : signaux BLOQUÉS par les gates (multi-TF, qualité, blackout) rejoués « et si » —
+      combien auraient perdu (capital protégé) et combien auraient gagné (transparence totale)."""
+    from app.data import replay
+    from app.services import journal_service
+
+    entries = journal_service.recent_entries(store, user.tenant_id, limit=500)
+    observed = journal_service.stats(entries)
+
+    would_lost = would_won = still_open = 0
+    for s in store.signals.list_for_tenant(user.tenant_id, limit=100):
+        p = s.payload
+        m = p.get("metrics") or {}
+        if p.get("direction") != "HOLD" or not m.get("blocked_direction"):
+            continue
+        try:
+            outcome, _, _ = await replay.replay_outcome(
+                p.get("asset", ""), m["blocked_direction"], m.get("blocked_entry"),
+                m.get("blocked_sl"), m.get("blocked_tp"), p.get("created_at"),
+            )
+        except Exception:  # noqa: BLE001
+            continue
+        if outcome == "lost":
+            would_lost += 1
+        elif outcome == "won":
+            would_won += 1
+        else:
+            still_open += 1
+
+    return {
+        "observed": observed,
+        "avoided": {
+            "blocked": would_lost + would_won + still_open,
+            "would_have_lost": would_lost,   # trades perdants évités = capital protégé
+            "would_have_won": would_won,     # honnêteté : les filtres ratent aussi des gagnants
+            "undecided": still_open,
+        },
+    }
+
+
+@router.get("/{signal_id}")
+async def get_signal(
+    signal_id: str,
+    user: User = Depends(current_user),
+    store: AppStore = Depends(store_dep),
+) -> dict:
+    """Consulte UNE prédiction en détail : agents, gates, news, métriques — le pourquoi complet."""
+    s = store.signals.get(signal_id)
+    if s is None or s.tenant_id != user.tenant_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Prédiction introuvable")
+    payload = dict(s.payload)
+    payload["id"] = s.id
+    payload.setdefault("created_at", s.created_at.isoformat() if s.created_at else None)
+
+    # Issue RÉELLE de la prédiction (résolue par le Journal) -> « a gagné / a perdu / en cours ».
+    from app.services import journal_service
+    entry = next(
+        (e for e in journal_service.recent_entries(store, user.tenant_id, limit=500)
+         if e.get("signal_id") == signal_id),
+        None,
+    )
+    if entry and payload.get("direction") != "HOLD":
+        payload["trade_outcome"] = {"outcome": entry.get("outcome"), "pnl": entry.get("pnl")}
+    return payload
 
 
 @router.get("")

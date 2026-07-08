@@ -26,6 +26,14 @@ _FX_NAMES = {
 }
 
 
+_COMMODITY_QUERIES = {
+    "XAU": "gold price Federal Reserve inflation safe haven",
+    "XAG": "silver price precious metals",
+    "XPT": "platinum price precious metals",
+    "XPD": "palladium price precious metals",
+}
+
+
 def _query_for(symbol: str) -> str:
     """Construit une requête de recherche pertinente selon la classe d'actif."""
     cls = markets.asset_class(symbol)
@@ -35,6 +43,9 @@ def _query_for(symbol: str) -> str:
     if cls == "forex":
         base, quote = (symbol.split("/") + [""])[:2]
         return f"{_FX_NAMES.get(base.upper(), base)} {_FX_NAMES.get(quote.upper(), quote)} forex"
+    if cls == "commodity":
+        base = symbol.split("/")[0].upper()
+        return _COMMODITY_QUERIES.get(base, f"{base} commodity price")
     # actions : le ticker tel quel (AAPL, TSLA…)
     return symbol.split("/")[0].split("-")[0].upper()
 
@@ -70,30 +81,54 @@ async def _newsapi(query: str, limit: int) -> list[NewsItem]:
 
 
 async def _finnhub(symbol: str, limit: int) -> list[NewsItem]:
+    """News Finnhub, adaptées à la classe d'actif.
+
+    - Actions : `company-news` propre au ticker (fenêtre des 14 derniers jours = fraîcheur).
+    - Crypto / forex : `news` par catégorie (Finnhub n'expose pas de news par paire) — flux
+      d'actualité de marché récent, pertinent pour le sentiment.
+    """
     s = get_settings()
     if not s.finnhub_api_key:
         return []
+    from datetime import UTC, datetime, timedelta
+
     import httpx
 
-    base = symbol.split("/")[0].split("-")[0].upper()
-    url = "https://finnhub.io/api/v1/company-news"
-    params = {"symbol": base, "token": s.finnhub_api_key, "from": "2024-01-01", "to": "2030-01-01"}
+    cls = markets.asset_class(symbol)
     async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.get(url, params=params)
+        if cls == "stock":
+            base = symbol.split("/")[0].split("-")[0].upper()
+            today = datetime.now(UTC).date()
+            params = {
+                "symbol": base,
+                "token": s.finnhub_api_key,
+                "from": (today - timedelta(days=14)).isoformat(),
+                "to": today.isoformat(),
+            }
+            resp = await client.get("https://finnhub.io/api/v1/company-news", params=params)
+        else:
+            category = "crypto" if cls == "crypto" else "forex" if cls == "forex" else "general"
+            params = {"category": category, "token": s.finnhub_api_key}
+            resp = await client.get("https://finnhub.io/api/v1/news", params=params)
         resp.raise_for_status()
-        data = resp.json()[:limit]
-    return [NewsItem(headline=i.get("headline", "")) for i in data if i.get("headline")]
+        data = resp.json() or []
+    # Finnhub renvoie les plus récents en tête ; on tronque après tri éventuel.
+    items = sorted(data, key=lambda i: i.get("datetime", 0), reverse=True)[:limit]
+    return [NewsItem(headline=i.get("headline", "")) for i in items if i.get("headline")]
 
 
 async def fetch_news(symbol: str, limit: int = 20) -> list[NewsItem]:
-    """Récupère de vraies news via le 1er fournisseur disponible (newsdata.io > NewsAPI > Finnhub)."""
+    """Récupère de vraies news via le 1er fournisseur disponible.
+
+    Ordre adapté à la classe d'actif : pour les ACTIONS, Finnhub est prioritaire (news propres au
+    ticker, plus pertinentes que la recherche par mots-clés) ; pour crypto/forex, NewsAPI/newsdata
+    (recherche ciblée par nom) d'abord, Finnhub (news de catégorie) en secours.
+    """
     query = _query_for(symbol)
-    # NewsAPI en premier (rapide/fiable), puis newsdata.io, puis Finnhub.
-    for provider, coro in (
-        ("NewsAPI", _newsapi(query, limit)),
-        ("newsdata.io", _newsdata(query, limit)),
-        ("Finnhub", _finnhub(symbol, limit)),
-    ):
+    finnhub = ("Finnhub", _finnhub(symbol, limit))
+    keyword = [("NewsAPI", _newsapi(query, limit)), ("newsdata.io", _newsdata(query, limit))]
+    providers = [finnhub, *keyword] if markets.asset_class(symbol) == "stock" else [*keyword, finnhub]
+    for provider, coro in providers:
         try:
             items = await coro
             if items:

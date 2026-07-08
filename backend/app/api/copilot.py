@@ -23,7 +23,7 @@ router = APIRouter(prefix="/api/copilot", tags=["copilot"])
 
 
 class ChatRequest(BaseModel):
-    asset: str = "BTC/USDT"
+    asset: str | None = None  # indice optionnel : actif par défaut si la question ne cite aucun symbole
     message: str
 
 

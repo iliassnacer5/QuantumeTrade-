@@ -21,13 +21,12 @@ logger = logging.getLogger(__name__)
 def _format_digest(picks: list[dict]) -> str:
     if not picks:
         return "Aucun trade fiable à forte conviction aujourd'hui. Mieux vaut s'abstenir."
-    lines = ["📈 Trades du jour (haute-conviction + backtest fiable) :"]
+    lines = ["📈 Trades du jour :"]
     for p in picks:
-        bt = p.get("backtest", {})
-        lines.append(
-            f"• {p['symbol']} {p['direction']} — ADX {p['adx']}, "
-            f"backtest {bt.get('win_rate')}% réussite / PF {bt.get('profit_factor')}"
-        )
+        bt = p.get("backtest") or {}
+        tag = "✅ confirmé" if p.get("tier") == "confirmed" else "👀 à surveiller (non confirmé)"
+        bt_txt = f" — backtest {bt.get('win_rate')}% / PF {bt.get('profit_factor')}" if bt else ""
+        lines.append(f"• {p['symbol']} {p['direction']} [{tag}] — ADX {p['adx']}{bt_txt}")
     lines.append("\nAide à la décision, pas un conseil. Vérifie R/R et taille de position avant d'agir.")
     return "\n".join(lines)
 
@@ -77,3 +76,59 @@ async def daily_loop() -> None:
             await run_daily_digest(get_store())
         except Exception as exc:  # noqa: BLE001
             logger.exception("Échec du digest quotidien (%s)", exc)
+
+
+async def learning_loop() -> None:
+    """Apprentissage continu : résout les signaux ouverts (win/loss) pour TOUS les tenants.
+
+    Plus il y a de trades résolus, plus les multiplicateurs de fiabilité par agent s'affinent et
+    plus les signaux émis deviennent fiables (le Master pondère selon ce qui a marché)."""
+    from app.repositories.store import get_store
+    from app.services import journal_service
+
+    while True:
+        await asyncio.sleep(max(60, get_settings().learning_interval))
+        store = get_store()
+        try:
+            tenants = {u.tenant_id for u in store.users.list_all()}
+        except Exception:  # noqa: BLE001
+            tenants = set()
+        total = 0
+        for tid in tenants:
+            try:
+                total += await journal_service.auto_resolve(store, tid)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Apprentissage tenant %s échoué (%s)", tid, exc)
+        if total:
+            logger.info("Apprentissage : %d signal(aux) résolu(s) -> pondérations affinées", total)
+
+
+async def strategy_alerts_loop() -> None:
+    """Surveille les stratégies actives et envoie une alerte à chaque nouveau signal directionnel."""
+    from app.repositories.store import get_store
+    from app.services import strategy_alert_service
+
+    while True:
+        await asyncio.sleep(max(120, get_settings().strategy_alerts_interval))
+        try:
+            sent = await strategy_alert_service.check_strategy_alerts(get_store())
+            if sent:
+                logger.info("Alertes stratégie : %d notification(s) envoyée(s)", sent)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Échec des alertes stratégie (%s)", exc)
+
+
+async def positions_loop() -> None:
+    """Surveillance continue des positions papier : clôture auto dès qu'un SL/TP est atteint."""
+    from app.repositories.store import get_store
+    from app.services import execution_service
+
+    while True:
+        interval = max(15, get_settings().position_monitor_interval)
+        await asyncio.sleep(interval)
+        try:
+            closed = await execution_service.monitor_positions(get_store())
+            if closed:
+                logger.info("Moniteur positions : %d position(s) clôturée(s) automatiquement", closed)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Échec du moniteur de positions (%s)", exc)

@@ -68,7 +68,9 @@ def decide(
     pool = active if active else voting
     num = den = 0.0
     for o in pool:
-        w = eff.get(o.name, 0.1) * max(o.confidence, 0.05)
+        # Bonus ×1.3 pour un agent EXPERT marché (connaît les règles spécifiques de son marché).
+        expert_bonus = 1.3 if (o.details or {}).get("expert") else 1.0
+        w = eff.get(o.name, 0.1) * max(o.confidence, 0.05) * expert_bonus
         num += w * o.score
         den += w
     combined = num / den if den else 0.0

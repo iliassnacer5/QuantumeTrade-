@@ -25,6 +25,7 @@ class Timeframe(str, Enum):
 class SignalCard(BaseModel):
     """Unité d'information centrale présentée au trader."""
 
+    id: str | None = Field(default=None, description="Id de la prédiction persistée (consultable)")
     asset: str = Field(..., examples=["BTC/USDT"])
     direction: Direction
     entry: float
@@ -43,6 +44,8 @@ class SignalCard(BaseModel):
     risk_warning: str | None = Field(default=None, description="Avertissement de risque éventuel")
     # Détail par agent (transparence / explicabilité)
     agents: list[dict] = Field(default_factory=list, description="Sorties des agents [{name,score,confidence,rationale}]")
+    # News utilisées par l'agent sentiment au moment de la prédiction (consultables par le trader).
+    news: list[dict] = Field(default_factory=list, description="Titres analysés [{headline, sentiment}]")
     # Tableau de bord des indicateurs techniques (RSI, MACD, ADX, EMA, Bollinger, ATR, supports…)
     metrics: dict = Field(default_factory=dict, description="Indicateurs techniques consolidés")
     consensus_pct: int = Field(default=0, ge=0, le=100, description="Consensus pondéré des agents (%)")
