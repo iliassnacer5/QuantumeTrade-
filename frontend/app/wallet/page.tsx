@@ -1,7 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from 'recharts';
 import { api, Wallet } from '@/lib/api';
+import { PageHeader, Card, Stat as AnimatedStat } from '@/components/ui';
+
+const usd = (n: number) => `${n.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} $`;
 
 export default function WalletPage() {
   const [w, setW] = useState<Wallet | null>(null);
@@ -36,41 +40,58 @@ export default function WalletPage() {
 
   const st = w.stats;
   const pnlColor = (v: number) => (v >= 0 ? 'text-buy' : 'text-sell');
-  // Mini courbe d'équité (SVG simple).
-  const pts = [{ equity: w.starting_balance }, ...w.equity_curve];
-  const eqs = pts.map((p) => p.equity);
-  const min = Math.min(...eqs), max = Math.max(...eqs), span = max - min || 1;
-  const path = pts.map((p, i) => `${(i / Math.max(1, pts.length - 1)) * 100},${30 - ((p.equity - min) / span) * 28}`).join(' ');
+  const up = w.return_pct >= 0;
+  const chartColor = up ? '#1D9E75' : '#E24B4A';
+  // Données de la courbe d'équité (aire dégradée).
+  const chartData = [{ equity: w.starting_balance, label: 'départ' }, ...w.equity_curve.map((p, i) => ({ equity: p.equity, label: p.symbol ?? `#${i + 1}` }))];
 
   return (
     <div className="p-8 space-y-6">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Portefeuille virtuel</h1>
-          <p className="text-sm text-muted">Compte simulé : ton solde évolue exactement comme un vrai compte, au fil de tes trades papier.</p>
-        </div>
-        <a href="/execution" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">Paper Trading →</a>
-      </header>
+      <PageHeader
+        title="Portefeuille virtuel"
+        subtitle="Compte simulé : ton solde évolue exactement comme un vrai compte, au fil de tes trades papier."
+        actions={
+          <a href="/execution" className="rounded-lg border border-border px-3 py-1.5 text-sm text-muted hover:bg-surface hover:text-white">
+            Paper Trading →
+          </a>
+        }
+      />
 
       {/* Solde & équité */}
       <section className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Big label="Solde" value={`${w.balance.toLocaleString()} $`} sub={`départ ${w.starting_balance.toLocaleString()} $`} />
-        <Big label="Équité (avec positions ouvertes)" value={`${w.equity.toLocaleString()} $`} />
-        <Big label="P&L réalisé" value={`${w.realized_pnl >= 0 ? '+' : ''}${w.realized_pnl.toLocaleString()} $`} color={pnlColor(w.realized_pnl)} />
-        <Big label="Performance" value={`${w.return_pct >= 0 ? '+' : ''}${w.return_pct}%`} color={pnlColor(w.return_pct)} sub={`latent ${w.unrealized_pnl >= 0 ? '+' : ''}${w.unrealized_pnl} $`} />
+        <Card variant="stat"><AnimatedStat label="Solde" value={w.balance} format={usd} hint={`départ ${usd(w.starting_balance)}`} /></Card>
+        <Card variant="stat"><AnimatedStat label="Équité (positions incluses)" value={w.equity} format={usd} /></Card>
+        <Card variant="stat"><AnimatedStat label="P&L réalisé" value={w.realized_pnl} format={(n) => `${n >= 0 ? '+' : ''}${usd(n)}`} tone={w.realized_pnl >= 0 ? 'buy' : 'sell'} /></Card>
+        <Card variant="stat"><AnimatedStat label="Performance" value={w.return_pct} format={(n) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`} tone={up ? 'buy' : 'sell'} hint={`latent ${w.unrealized_pnl >= 0 ? '+' : ''}${w.unrealized_pnl} $`} /></Card>
       </section>
 
       {/* Courbe d'équité */}
-      <section className="rounded-xl border border-border bg-surface p-4">
+      <Card>
         <h2 className="mb-2 text-sm font-semibold text-white">Courbe d’équité ({st.trades} trade(s) clôturé(s))</h2>
         {w.equity_curve.length > 0 ? (
-          <svg viewBox="0 0 100 30" preserveAspectRatio="none" className="h-24 w-full">
-            <polyline points={path} fill="none" stroke={w.return_pct >= 0 ? '#1D9E75' : '#E24B4A'} strokeWidth="0.6" />
-          </svg>
+          <div className="h-56 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+                <defs>
+                  <linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={chartColor} stopOpacity={0.35} />
+                    <stop offset="100%" stopColor={chartColor} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <YAxis domain={['dataMin', 'dataMax']} hide />
+                <Tooltip
+                  contentStyle={{ background: '#1B222B', border: '1px solid #232A33', borderRadius: 8, fontSize: 12 }}
+                  labelStyle={{ color: '#8A94A6' }}
+                  formatter={(v) => [usd(Number(v)), 'Équité']}
+                />
+                <Area type="monotone" dataKey="equity" stroke={chartColor} strokeWidth={2} fill="url(#equityFill)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         ) : (
           <p className="text-sm text-muted">Aucun trade clôturé. Passe des ordres en <a href="/execution" className="text-accent underline">Paper Trading</a> et laisse-les se résoudre.</p>
         )}
-      </section>
+      </Card>
 
       {/* Statistiques de fiabilité */}
       <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -116,16 +137,6 @@ export default function WalletPage() {
         C’est le juge de paix : après plusieurs dizaines de trades, ce solde te dit objectivement si ta façon de trader est fiable.
         Argent fictif — aide à la décision, pas un conseil en investissement.
       </p>
-    </div>
-  );
-}
-
-function Big({ label, value, sub, color = 'text-white' }: { label: string; value: string; sub?: string; color?: string }) {
-  return (
-    <div className="rounded-xl border border-border bg-surface p-4">
-      <p className="text-xs text-muted">{label}</p>
-      <p className={`mt-1 text-xl font-semibold ${color}`}>{value}</p>
-      {sub && <p className="text-[11px] text-muted">{sub}</p>}
     </div>
   );
 }

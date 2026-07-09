@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api, TrackRecord, WalkForward } from '@/lib/api';
+import { PageHeader, Button, RouteTabs, PROVE_TABS } from '@/components/ui';
 
 const VERDICT_STYLE: Record<string, string> = {
   robuste: 'border-buy/40 bg-buy/5',
@@ -63,20 +64,16 @@ export default function TrackRecordPage() {
 
   return (
     <div className="p-8 space-y-6">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Track Record</h1>
-          <p className="text-sm text-muted">
-            Validation honnête : robustesse out-of-sample (walk-forward) + performance réellement observée.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => load(true)} disabled={loading} className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface disabled:opacity-50">
+      <PageHeader
+        title="Track Record"
+        subtitle="Validation honnête : robustesse out-of-sample (walk-forward) + performance réellement observée."
+        actions={
+          <Button variant="secondary" size="sm" onClick={() => load(true)} loading={loading}>
             {loading ? '…' : 'Recalculer'}
-          </button>
-          <a href="/dashboard" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">← Dashboard</a>
-        </div>
-      </header>
+          </Button>
+        }
+      />
+      <RouteTabs items={PROVE_TABS} />
 
       {error && <p className="text-sell">{error}</p>}
       {loading && <p className="text-muted">Validation walk-forward en cours (backtests sur plusieurs périodes)…</p>}

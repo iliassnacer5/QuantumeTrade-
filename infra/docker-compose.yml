@@ -3,7 +3,8 @@
 # Variables lues depuis ../.env (créer depuis ../.env.example).
 #
 # Ports hôte choisis pour éviter les conflits avec des conteneurs déjà en cours :
-#   - backend  -> 8080 (8000 souvent occupé)
+#   - backend  -> 8090 (8000/8080 souvent occupés — ex. Keycloak sur 8080)
+#     surchargeable : BACKEND_PORT=xxxx dans .env (pense à régler PUBLIC_API_URL/PUBLIC_WS_URL en accord).
 #   - frontend -> 3000
 #   - postgres/redis/redpanda : NON exposés sur l'hôte (réseau interne uniquement)
 #     -> aucun conflit avec un Postgres/Redis déjà lancés sur 5432/6379.
@@ -70,7 +71,7 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       ENVIRONMENT: dev
     ports:
-      - "8080:8000"
+      - "${BACKEND_PORT:-8090}:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -81,10 +82,10 @@ services:
     build:
       context: ../frontend
       args:
-        # Inlinés au BUILD (Next.js NEXT_PUBLIC_*). Le navigateur appelle le backend sur 8080.
-        # En déploiement public : PUBLIC_API_URL=http://IP_PUBLIQUE:8080 (rebuild requis).
-        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8080}
-        NEXT_PUBLIC_WS_URL: ${PUBLIC_WS_URL:-ws://localhost:8080/ws}
+        # Inlinés au BUILD (Next.js NEXT_PUBLIC_*). Le navigateur appelle le backend sur 8090.
+        # En déploiement public : PUBLIC_API_URL=http://IP_PUBLIQUE:8090 (rebuild requis).
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8090}
+        NEXT_PUBLIC_WS_URL: ${PUBLIC_WS_URL:-ws://localhost:8090/ws}
     ports:
       - "3000:3000"
     depends_on:

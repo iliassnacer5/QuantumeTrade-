@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api, Branding, PlanInfo } from '@/lib/api';
+import { PageHeader } from '@/components/ui';
 
 export default function BrandingPage() {
   const [plan, setPlan] = useState<PlanInfo | null>(null);
@@ -40,10 +41,7 @@ export default function BrandingPage() {
 
   return (
     <div className="p-8 space-y-6">
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">White-label</h1>
-        <a href="/dashboard" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">← Dashboard</a>
-      </header>
+      <PageHeader title="White-label" />
 
       <div className="grid gap-6 md:grid-cols-2">
         <section className="space-y-3 rounded-xl border border-border bg-surface p-5">

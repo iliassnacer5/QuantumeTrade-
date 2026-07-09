@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { api, StrategyInfo, StrategyBacktest, StrategySignal, WalkForward, MultiValidation, StrategyComparison } from '@/lib/api';
+import { MarketSelector } from '@/components/domain';
+import { PageHeader, RouteTabs, PROVE_TABS } from '@/components/ui';
+import { MARKET_BADGE } from '@/lib/markets';
 
 const VERDICT_STYLE: Record<string, string> = {
   robuste: 'text-buy', fragile: 'text-yellow-400', non_prouve: 'text-sell', insuffisant: 'text-muted',
@@ -10,13 +13,6 @@ const CAT_LABEL: Record<string, string> = {
   tendance: 'Tendance', 'retour-moyenne': 'Retour à la moyenne',
   volume: 'Volume', 'smart-money': 'Smart Money', cassure: 'Cassure',
 };
-const MARKETS = [
-  { id: 'crypto', label: 'Crypto' },
-  { id: 'forex', label: 'Forex' },
-  { id: 'stock', label: 'Actions' },
-  { id: 'commodity', label: '🥇 Or & Métaux' },
-];
-const MARKET_BADGE: Record<string, string> = { crypto: '₿ Crypto', forex: '💱 Forex', stock: '📈 Actions', commodity: '🥇 Or' };
 
 export default function StrategiesPage() {
   const [list, setList] = useState<StrategyInfo[]>([]);
@@ -118,24 +114,15 @@ export default function StrategiesPage() {
 
   return (
     <div className="p-8 space-y-6">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Stratégies</h1>
-          <p className="text-sm text-muted">Backteste des stratégies éprouvées, valide-les (walk-forward) et choisis-en une pour travailler.</p>
-        </div>
-        <a href="/dashboard" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">← Dashboard</a>
-      </header>
+      <PageHeader
+        title="Stratégies"
+        subtitle="Backteste des stratégies éprouvées, valide-les (walk-forward) et choisis-en une pour travailler."
+      />
+      <RouteTabs items={PROVE_TABS} />
 
       <div className="flex flex-wrap items-center gap-3">
         <label className="text-sm text-muted">Marché</label>
-        <div className="flex gap-1">
-          {MARKETS.map((mk) => (
-            <button key={mk.id} onClick={() => setMarket(mk.id)}
-              className={`rounded-lg border px-3 py-1.5 text-sm ${market === mk.id ? 'border-accent bg-accent/10 text-white' : 'border-border text-muted hover:bg-surface'}`}>
-              {mk.label}
-            </button>
-          ))}
-        </div>
+        <MarketSelector value={market} onChange={setMarket} includeAll={false} label={null} />
         <label className="text-sm text-muted">Tester sur</label>
         <select value={symbol} onChange={(e) => setSymbol(e.target.value)}
           className="rounded-lg border border-border bg-background px-3 py-1.5 font-mono text-sm text-white">

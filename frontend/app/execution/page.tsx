@@ -2,16 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { api, BrokerConn, Order, PlanInfo } from '@/lib/api';
+import { MarketSelector, OutcomeBanner, DataSourceBadge } from '@/components/domain';
+import { PageHeader } from '@/components/ui';
 
 type Ticket = { connId: string; side: 'buy' | 'sell' };
-
-const CLASSES = [
-  { id: '', label: 'Tous' },
-  { id: 'crypto', label: 'Crypto' },
-  { id: 'forex', label: 'Forex' },
-  { id: 'stock', label: 'Actions' },
-  { id: 'commodity', label: '🥇 Or & Métaux' },
-];
 
 export default function ExecutionPage() {
   const [plan, setPlan] = useState<PlanInfo | null>(null);
@@ -188,13 +182,14 @@ export default function ExecutionPage() {
 
   return (
     <div className="p-8 space-y-6">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Paper Trading</h1>
-          <p className="text-sm text-muted">Trading simulé <b className="text-buy">gratuit</b> pour s&apos;entraîner sans risque. Exécution réelle = Elite + KYC.</p>
-        </div>
-        <a href="/dashboard" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">← Dashboard</a>
-      </header>
+      <PageHeader
+        title="Paper Trading"
+        subtitle={
+          <>
+            Trading simulé <b className="text-buy">gratuit</b> pour s’entraîner sans risque. Exécution réelle = Elite + KYC.
+          </>
+        }
+      />
 
       {error && <p className="text-sell">{error}</p>}
 
@@ -241,7 +236,9 @@ export default function ExecutionPage() {
 
             {/* Ticket d'ordre complet pour cette connexion */}
             {ticket?.connId === c.id && (
-              <div className="mt-4 rounded-lg border border-border bg-background p-4">
+              <>
+                <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={() => setTicket(null)} />
+                <aside className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col overflow-y-auto border-l border-border bg-elevated p-5 shadow-elevated">
                 <div className="mb-3 flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-white">
                     Nouvel ordre — <span className={ticket.side === 'buy' ? 'text-buy' : 'text-sell'}>{ticket.side === 'buy' ? 'ACHAT' : 'VENTE'}</span>
@@ -251,15 +248,7 @@ export default function ExecutionPage() {
 
                 {/* Sélecteur complet : marché · session · paire/symbole */}
                 <div className="mb-3 space-y-2">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-xs text-muted">Marché</span>
-                    {CLASSES.map((cc) => (
-                      <button key={cc.id} onClick={() => setCls(cc.id)}
-                        className={`rounded border px-2 py-0.5 text-xs ${cls === cc.id ? 'border-accent bg-accent/10 text-white' : 'border-border text-muted hover:bg-surface'}`}>
-                        {cc.label}
-                      </button>
-                    ))}
-                  </div>
+                  <MarketSelector value={cls} onChange={setCls} />
                   {sessions.length > 0 && (
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="text-xs text-muted">Session <span className="text-[10px]">({utcTime})</span></span>
@@ -306,15 +295,7 @@ export default function ExecutionPage() {
                 {/* Badge qualité des données */}
                 {dataSrc && (
                   <div className="mt-3">
-                    {dataSrc.real ? (
-                      <span className="inline-flex items-center gap-1 rounded bg-buy/15 px-2 py-0.5 text-xs text-buy">
-                        ● {dataSrc.label} — données réelles
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 rounded bg-sell/15 px-2 py-0.5 text-xs text-sell">
-                        ⚠ {dataSrc.label} — pas de source réelle, trade bloqué
-                      </span>
-                    )}
+                    <DataSourceBadge real={dataSrc.real} label={dataSrc.real ? `${dataSrc.label} — données réelles` : `${dataSrc.label} — pas de source réelle, trade bloqué`} />
                   </div>
                 )}
 
@@ -334,7 +315,8 @@ export default function ExecutionPage() {
                   </button>
                   <span className="text-[11px] text-muted">Ordre simulé — rempli au prix marché. Le stop/TP sont enregistrés avec le trade.</span>
                 </div>
-              </div>
+                </aside>
+              </>
             )}
           </div>
         ))}
@@ -354,10 +336,11 @@ export default function ExecutionPage() {
                 <span className={o.side === 'buy' ? 'text-buy' : 'text-sell'}>{o.side}</span>
                 <span className="text-muted">{o.qty} @ {o.filled_price ?? '—'}</span>
                 <span className="rounded bg-muted/20 px-2 py-0.5 text-xs text-muted">{o.mode}</span>
-                {outcome === 'won' && <span className="rounded bg-buy/20 px-2 py-0.5 text-xs font-bold text-buy">✅ GAGNÉ</span>}
-                {outcome === 'lost' && <span className="rounded bg-sell/20 px-2 py-0.5 text-xs font-bold text-sell">🔴 PERDU</span>}
-                {outcome === 'open' && <span className="rounded bg-muted/20 px-2 py-0.5 text-xs text-muted">⏳ EN COURS</span>}
-                {!outcome && <span className="text-xs text-gray-400">{o.status}</span>}
+                {outcome ? (
+                  <OutcomeBanner outcome={outcome} className="px-2 py-0.5" />
+                ) : (
+                  <span className="text-xs text-gray-400">{o.status}</span>
+                )}
                 {o.copied_from && <span className="rounded bg-accent/20 px-2 py-0.5 text-xs text-accent">copié</span>}
                 {!closed && (
                   <div className="ml-auto flex gap-2">

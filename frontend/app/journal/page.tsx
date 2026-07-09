@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api, JournalEntry, JournalInsights, PlanInfo } from '@/lib/api';
+import { PageHeader, Button } from '@/components/ui';
 
 export default function JournalPage() {
   const [plan, setPlan] = useState<PlanInfo | null>(null);
@@ -64,17 +65,14 @@ export default function JournalPage() {
 
   return (
     <div className="p-8 space-y-6">
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">Journal &amp; Apprentissage</h1>
-        <div className="flex gap-2">
-          <button onClick={autoResolve} className="rounded-lg border border-accent/50 px-3 py-1 text-sm text-accent hover:bg-accent/10">
+      <PageHeader
+        title="Journal & Apprentissage"
+        actions={
+          <Button variant="secondary" size="sm" onClick={autoResolve}>
             Résoudre les signaux ouverts
-          </button>
-          <a href="/dashboard" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
-            ← Dashboard
-          </a>
-        </div>
-      </header>
+          </Button>
+        }
+      />
 
       {error && <p className="text-sell">{error}</p>}
 

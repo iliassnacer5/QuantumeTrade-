@@ -61,12 +61,12 @@ cp .env.example .env          # puis renseigner les clés API (optionnel en dev)
 docker compose -f infra/docker-compose.yml up --build
 
 # 3. Vérifier
-# Backend  : http://localhost:8080/health  -> {"status":"ok"}
-# API docs : http://localhost:8080/docs
+# Backend  : http://localhost:8090/health  -> {"status":"ok"}
+# API docs : http://localhost:8090/docs
 # Frontend : http://localhost:3000
 ```
 
-> **Ports** : le backend est exposé sur **8080** (et non 8000) et Postgres/Redis/Redpanda
+> **Ports** : le backend est exposé sur **8090** (et non 8000/8080, souvent occupés) et Postgres/Redis/Redpanda
 > ne sont **pas** exposés sur l'hôte — ils communiquent en interne via le réseau Docker.
 > Cela évite tout conflit si vous avez déjà un Postgres (5432), un Redis (6379) ou un service
 > sur 8000 en cours d'exécution. Le backend tourne avec `USE_IN_MEMORY_DB=false` → persistance

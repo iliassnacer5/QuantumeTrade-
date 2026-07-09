@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api, PlanInfo } from '@/lib/api';
+import { PageHeader } from '@/components/ui';
 
 type Plan = { id: string; price: number; features: string[] };
 
@@ -44,19 +45,10 @@ export default function PlansPage() {
 
   return (
     <div className="p-8 space-y-6">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Plans &amp; Abonnement</h1>
-          {current && (
-            <p className="text-sm text-muted">
-              Plan actuel : <span className="uppercase text-white">{current.plan}</span>
-            </p>
-          )}
-        </div>
-        <a href="/dashboard" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
-          ← Dashboard
-        </a>
-      </header>
+      <PageHeader
+        title="Plans & Abonnement"
+        subtitle={current ? <>Plan actuel : <span className="uppercase text-white">{current.plan}</span></> : undefined}
+      />
 
       {msg && <p className="rounded-lg border border-border bg-surface p-3 text-sm text-white">{msg}</p>}
 

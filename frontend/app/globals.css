@@ -8,4 +8,73 @@
 
 body {
   @apply bg-background text-white antialiased;
+  /* Halo de marque discret en haut de page. */
+  background-image: theme('backgroundImage.brand-radial');
+  background-attachment: fixed;
+}
+
+@layer utilities {
+  /* Effet verre dépoli pour les cartes « glass » et la topbar. */
+  .glass {
+    @apply border border-white/10 bg-glass backdrop-blur-md;
+  }
+
+  /* Squelette shimmer réutilisable. */
+  .shimmer {
+    @apply relative overflow-hidden bg-surface;
+  }
+  .shimmer::after {
+    content: '';
+    @apply absolute inset-0 -translate-x-full animate-shimmer;
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.06),
+      transparent
+    );
+  }
+
+  /* Texte en gradient de marque. */
+  .text-gradient {
+    @apply bg-brand-gradient bg-clip-text text-transparent;
+  }
+
+  /* Masquage visuel accessible. */
+  .sr-only-focusable:not(:focus) {
+    @apply sr-only;
+  }
+}
+
+/* Focus visible cohérent pour toute la nav clavier. */
+:focus-visible {
+  @apply outline-none ring-2 ring-accent/70 ring-offset-2 ring-offset-background;
+}
+
+/* Scrollbar sobre, ton dark. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2b333d transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: #2b333d;
+  border-radius: 9999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: #3a444f;
+}
+
+/* Respect de prefers-reduced-motion : on coupe les animations non essentielles. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }

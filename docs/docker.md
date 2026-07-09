@@ -8,20 +8,20 @@ docker compose -f infra/docker-compose.yml up --build
 
 | Service | Image | Port hôte | Rôle |
 |---------|-------|-----------|------|
-| backend | build `backend/` | **8080** → 8000 | API FastAPI + agents |
+| backend | build `backend/` | **8090** → 8000 | API FastAPI + agents |
 | frontend | build `frontend/` | **3000** | Dashboard Next.js |
 | postgres | timescale/timescaledb pg16 | _interne_ | Persistance (volume `pgdata`) |
 | redis | redis:7 | _interne_ | Cache / pub-sub |
 | redpanda | redpandadata/redpanda | _interne_ | Pipeline (Kafka-compatible) |
 
-**Vérification :** `http://localhost:8080/health` · `http://localhost:8080/docs` · `http://localhost:3000`
+**Vérification :** `http://localhost:8090/health` · `http://localhost:8090/docs` · `http://localhost:3000`
 
 ## Choix de ports (éviter les conflits)
-- Le backend est sur **8080** (le 8000 est fréquemment occupé, ex. ChromaDB).
+- Le backend est sur **8090** (8000 et 8080 sont fréquemment occupés, ex. ChromaDB sur 8000, Keycloak sur 8080). Surchargeable via `BACKEND_PORT` dans `.env`.
 - Postgres / Redis / Redpanda **ne sont pas exposés** sur l'hôte : ils communiquent par le réseau
   Docker interne (`postgres:5432`, `redis:6379`, `redpanda:9092`). Aucun conflit avec un Postgres
   (5432) ou un Redis (6379) déjà lancés sur votre machine.
-- Le frontend reçoit `NEXT_PUBLIC_API_URL=http://localhost:8080` au build (Next.js inline ces
+- Le frontend reçoit `NEXT_PUBLIC_API_URL=http://localhost:8090` au build (Next.js inline ces
   variables dans le bundle client).
 
 ## Persistance

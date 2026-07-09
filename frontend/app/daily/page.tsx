@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { PageHeader, Button } from '@/components/ui';
 
 const TIMEFRAMES = [
   { tf: '5m', label: 'Scalp 5m' },
@@ -41,21 +42,20 @@ export default function DailyPage() {
 
   return (
     <div className="p-8 space-y-6">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Trades du jour</h1>
-          <p className="text-sm text-muted">
+      <PageHeader
+        title="Trades du jour"
+        subtitle={
+          <>
             Les meilleures opportunités par marché : ★ <span className="text-buy">confirmées par backtest</span> en priorité,
             sinon les setups <span className="text-yellow-300">à surveiller</span> (non confirmés, clairement étiquetés).
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => load(true)} disabled={loading} className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface disabled:opacity-50">
+          </>
+        }
+        actions={
+          <Button variant="secondary" size="sm" onClick={() => load(true)} loading={loading}>
             {loading ? '…' : 'Rafraîchir'}
-          </button>
-          <a href="/dashboard" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">← Dashboard</a>
-        </div>
-      </header>
+          </Button>
+        }
+      />
 
       {/* Sélecteur d'unité de temps : les TF longs (4h, 1d) filtrent le bruit -> plus fiables. */}
       <div className="flex flex-wrap items-center gap-2">

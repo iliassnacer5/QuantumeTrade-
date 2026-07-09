@@ -3,8 +3,8 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # NEXT_PUBLIC_* doivent être présents AU BUILD (Next.js les inline dans le bundle client).
-ARG NEXT_PUBLIC_API_URL=http://localhost:8080
-ARG NEXT_PUBLIC_WS_URL=ws://localhost:8080/ws
+ARG NEXT_PUBLIC_API_URL=http://localhost:8090
+ARG NEXT_PUBLIC_WS_URL=ws://localhost:8090/ws
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
 

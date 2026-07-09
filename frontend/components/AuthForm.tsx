@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { api, setToken } from '@/lib/api';
+import { Button } from '@/components/ui';
 
 export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const router = useRouter();
@@ -30,42 +31,45 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   }
 
   return (
-    <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-xl border border-border bg-surface p-6">
-      <h1 className="text-xl font-bold">{isRegister ? 'Créer un compte' : 'Connexion'}</h1>
-      <input
-        type="email"
-        placeholder="Email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        required
-        className="w-full rounded-lg border border-border bg-background px-3 py-2 outline-none focus:border-accent"
-      />
-      <input
-        type="password"
-        placeholder="Mot de passe (8+ caractères)"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        required
-        minLength={8}
-        className="w-full rounded-lg border border-border bg-background px-3 py-2 outline-none focus:border-accent"
-      />
-      {error && <p className="text-sm text-sell">{error}</p>}
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full rounded-lg bg-accent py-2 font-semibold text-background hover:opacity-90 disabled:opacity-50"
-      >
-        {loading ? '...' : isRegister ? 'Créer mon compte' : 'Se connecter'}
-      </button>
+    <form onSubmit={submit} className="glass w-full max-w-sm space-y-4 rounded-2xl p-7 shadow-elevated">
+      <div className="mb-1 flex items-center gap-2 font-bold text-white">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-gradient text-background">Q</span>
+        Quantum<span className="text-gradient">Trade</span>
+      </div>
+      <div>
+        <h1 className="text-h2 text-white">{isRegister ? 'Créer un compte' : 'Bon retour'}</h1>
+        <p className="text-sm text-muted">
+          {isRegister ? 'Quelques secondes pour démarrer.' : 'Connecte-toi pour retrouver ton poste.'}
+        </p>
+      </div>
+      <div className="space-y-3">
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          className="w-full rounded-lg border border-border bg-background/60 px-3 py-2.5 text-sm outline-none transition focus:border-accent"
+        />
+        <input
+          type="password"
+          placeholder="Mot de passe (8+ caractères)"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          minLength={8}
+          className="w-full rounded-lg border border-border bg-background/60 px-3 py-2.5 text-sm outline-none transition focus:border-accent"
+        />
+      </div>
+      {error && <p className="rounded-lg border border-sell/30 bg-sell/10 px-3 py-2 text-sm text-sell">{error}</p>}
+      <Button type="submit" size="lg" loading={loading} className="w-full">
+        {isRegister ? 'Créer mon compte' : 'Se connecter'}
+      </Button>
       <p className="text-center text-xs text-muted">
         {isRegister ? (
-          <a href="/login" className="hover:text-white">
-            Déjà un compte ? Se connecter
-          </a>
+          <a href="/login" className="transition hover:text-white">Déjà un compte ? Se connecter</a>
         ) : (
-          <a href="/register" className="hover:text-white">
-            Pas de compte ? Créer un compte
-          </a>
+          <a href="/register" className="transition hover:text-white">Pas de compte ? Créer un compte</a>
         )}
       </p>
     </form>

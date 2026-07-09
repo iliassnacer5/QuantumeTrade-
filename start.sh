@@ -36,10 +36,11 @@ echo "==> docker compose up -d $BUILD"
 docker compose -f "$COMPOSE" up -d $BUILD
 
 # 3. Attente du backend
-printf "==> Attente du backend (http://localhost:8080/health)..."
+BACKEND_PORT="${BACKEND_PORT:-8090}"
+printf "==> Attente du backend (http://localhost:%s/health)..." "$BACKEND_PORT"
 ready=0
 for _ in $(seq 1 40); do
-  if [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/health 2>/dev/null || echo 000)" = "200" ]; then
+  if [ "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$BACKEND_PORT/health" 2>/dev/null || echo 000)" = "200" ]; then
     ready=1; break
   fi
   sleep 2; printf "."
@@ -47,13 +48,13 @@ done
 echo
 
 if [ "$ready" = "1" ]; then
-  cat <<'EOF'
+  cat <<EOF
 
   Stack prete !
   ------------------------------------------
   Dashboard  : http://localhost:3000
-  API        : http://localhost:8080
-  API docs   : http://localhost:8080/docs
+  API        : http://localhost:$BACKEND_PORT
+  API docs   : http://localhost:$BACKEND_PORT/docs
   ------------------------------------------
   Arret : ./stop.sh   |   Logs : ./start.sh --logs
 

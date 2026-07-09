@@ -9,6 +9,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { api, Signal } from '@/lib/api';
+import { DirectionBadge } from '@/components/domain';
 
 const AGENT_LABEL: Record<string, string> = {
   technical: 'Analyse technique', volume: 'Volume', sentiment: 'Sentiment & news',
@@ -27,9 +28,6 @@ export default function SignalDetailPage() {
   if (error) return <div className="p-8 text-sell">{error}</div>;
   if (!s) return <div className="p-8 text-white">Chargement de la prédiction…</div>;
 
-  const isBuy = s.direction === 'BUY';
-  const isSell = s.direction === 'SELL';
-  const badge = isBuy ? 'bg-buy/20 text-buy' : isSell ? 'bg-sell/20 text-sell' : 'bg-border text-muted';
   const m = s.metrics ?? {};
   // La 1re ligne du rationale = l'arbitrage du Master ; les puces = le détail des agents.
   const masterLine = (s.rationale || '').split('\n')[0];
@@ -42,7 +40,7 @@ export default function SignalDetailPage() {
           <div className="flex items-center gap-3">
             <h1 className="font-mono text-2xl font-bold text-white">{s.asset}</h1>
             <span className="rounded bg-surface px-2 py-0.5 text-xs text-muted">⏱ {s.timeframe}</span>
-            <span className={`rounded-md px-3 py-1 text-sm font-bold ${badge}`}>{s.direction}</span>
+            <DirectionBadge direction={s.direction} />
             {s.high_conviction && <span className="rounded bg-buy/20 px-2 py-1 text-[10px] font-bold text-buy">★ HAUTE CONVICTION</span>}
           </div>
           <p className="mt-1 text-xs text-muted">
@@ -50,7 +48,6 @@ export default function SignalDetailPage() {
             {s.consensus_pct ? ` · consensus des agents ${s.consensus_pct}%` : ''}
           </p>
         </div>
-        <a href="/dashboard" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">← Dashboard</a>
       </header>
 
       {/* Issue RÉELLE de la prédiction — le track record vérifiable, prédiction par prédiction */}
@@ -64,6 +61,9 @@ export default function SignalDetailPage() {
           {s.trade_outcome.outcome === 'open' && <>⏳ Prédiction <b>en cours</b> — l&apos;issue sera affichée ici dès que le prix touche le stop ou l&apos;objectif.</>}
         </section>
       )}
+
+      {/* Timeline de la décision : le chemin données → verdict, en un coup d'œil */}
+      <DecisionTimeline direction={s.direction} agentCount={s.agents?.length ?? 0} gateCount={gateLines.length} consensus={s.consensus_pct} />
 
       {/* Pourquoi cette décision — l'arbitrage du Master + gates appliqués */}
       <section className="rounded-xl border border-accent/30 bg-accent/5 p-4">
@@ -276,6 +276,42 @@ export default function SignalDetailPage() {
         Prédiction générée automatiquement par l&apos;analyse multi-agents. Aide à la décision, pas un conseil
         en investissement — vérifie toujours par toi-même avant d&apos;agir.
       </p>
+    </div>
+  );
+}
+
+/** Frise horizontale : données → agents → pesée → gates → verdict. */
+function DecisionTimeline({
+  direction, agentCount, gateCount, consensus,
+}: { direction: string; agentCount: number; gateCount: number; consensus?: number }) {
+  const verdictTone =
+    direction === 'BUY' ? 'border-buy/50 bg-buy/15 text-buy'
+    : direction === 'SELL' ? 'border-sell/50 bg-sell/15 text-sell'
+    : 'border-border bg-surface text-muted';
+  const steps = [
+    { icon: '📥', label: 'Données', sub: 'marché + news' },
+    { icon: '🗳️', label: 'Agents', sub: `${agentCount} votes` },
+    { icon: '⚖️', label: 'Pesée', sub: consensus ? `consensus ${consensus}%` : 'pondérée' },
+    { icon: '🚦', label: 'Gates', sub: gateCount ? `${gateCount} filtre(s)` : 'passés' },
+  ];
+  return (
+    <div className="glass rounded-xl p-4">
+      <div className="flex items-center gap-2 overflow-x-auto">
+        {steps.map((st) => (
+          <div key={st.label} className="flex items-center gap-2">
+            <div className="flex min-w-[4.5rem] flex-col items-center text-center">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background text-sm">{st.icon}</span>
+              <span className="mt-1 text-2xs font-medium text-white">{st.label}</span>
+              <span className="text-2xs text-muted">{st.sub}</span>
+            </div>
+            <span className="h-px w-6 shrink-0 bg-gradient-to-r from-border to-accent/40" />
+          </div>
+        ))}
+        <div className={`flex min-w-[4.5rem] flex-col items-center rounded-lg border px-3 py-1.5 text-center ${verdictTone}`}>
+          <span className="text-sm font-bold">{direction}</span>
+          <span className="text-2xs opacity-80">verdict</span>
+        </div>
+      </div>
     </div>
   );
 }

@@ -52,11 +52,12 @@ if ($NoBuild) {
 if ($LASTEXITCODE -ne 0) { Write-Host "ERREUR au demarrage de la stack." -ForegroundColor Red; exit 1 }
 
 # 3. Attente du backend (health)
-Write-Host "==> Attente du backend (http://localhost:8080/health)..." -NoNewline
+$backendPort = if ($env:BACKEND_PORT) { $env:BACKEND_PORT } else { "8090" }
+Write-Host "==> Attente du backend (http://localhost:$backendPort/health)..." -NoNewline
 $ready = $false
 foreach ($i in 1..40) {
     try {
-        $r = Invoke-WebRequest -Uri "http://localhost:8080/health" -UseBasicParsing -TimeoutSec 3
+        $r = Invoke-WebRequest -Uri "http://localhost:$backendPort/health" -UseBasicParsing -TimeoutSec 3
         if ($r.StatusCode -eq 200) { $ready = $true; break }
     } catch { }
     Start-Sleep -Seconds 2
@@ -69,8 +70,8 @@ if ($ready) {
     Write-Host "  Stack prete et EN COURS D'EXECUTION (conteneurs Docker en arriere-plan)" -ForegroundColor Green
     Write-Host "  ------------------------------------------" -ForegroundColor Green
     Write-Host "  Dashboard  : http://localhost:3000" -ForegroundColor Green
-    Write-Host "  API        : http://localhost:8080" -ForegroundColor Green
-    Write-Host "  API docs   : http://localhost:8080/docs" -ForegroundColor Green
+    Write-Host "  API        : http://localhost:$backendPort" -ForegroundColor Green
+    Write-Host "  API docs   : http://localhost:$backendPort/docs" -ForegroundColor Green
     Write-Host "  ------------------------------------------" -ForegroundColor Green
     Write-Host "  Etat  : docker compose -f infra/docker-compose.yml ps" -ForegroundColor DarkGray
     Write-Host "  Logs  : .\start.ps1 -Logs   |   Arret : .\stop.ps1" -ForegroundColor DarkGray

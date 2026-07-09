@@ -4,20 +4,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { api, Signal } from '@/lib/api';
 import { Chart } from '@/components/Chart';
 import { SignalCard } from '@/components/SignalCard';
+import { MarketSelector, DirectionBadge } from '@/components/domain';
+import { PageHeader, Segmented, Table, THead, TBody, TR, TH, TD } from '@/components/ui';
+import { TIMEFRAMES } from '@/lib/markets';
 
-const CLASSES = [
-  { id: '', label: 'Tous' },
-  { id: 'crypto', label: 'Crypto' },
-  { id: 'forex', label: 'Forex' },
-  { id: 'stock', label: 'Actions' },
-  { id: 'commodity', label: '🥇 Or & Métaux' },
-];
-const TIMEFRAMES = [
-  { tf: 'scalp', interval: '5m', label: 'Scalp (5m)' },
-  { tf: 'intraday', interval: '15m', label: 'Intraday (15m)' },
-  { tf: 'swing', interval: '1h', label: 'Swing (1h)' },
-  { tf: 'position', interval: '4h', label: 'Position (4h)' },
-];
+type SortKey = 'symbol' | 'conviction' | 'adx' | 'rsi';
 
 export default function ScannerPage() {
   const [cls, setCls] = useState('crypto');
@@ -37,6 +28,26 @@ export default function ScannerPage() {
   const [session, setSession] = useState<string>('');
   const [tradingSym, setTradingSym] = useState<string | null>(null);
   const [tradeMsg, setTradeMsg] = useState<string | null>(null);
+  const [scanView, setScanView] = useState<'table' | 'cards'>('table');
+  const [sortKey, setSortKey] = useState<SortKey>('conviction');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const sortedResults = useMemo(() => {
+    const arr = [...results];
+    arr.sort((a, b) => {
+      const av = a[sortKey] ?? (sortKey === 'symbol' ? '' : 0);
+      const bv = b[sortKey] ?? (sortKey === 'symbol' ? '' : 0);
+      const cmp = typeof av === 'string' ? String(av).localeCompare(String(bv)) : Number(av) - Number(bv);
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return arr;
+  }, [results, sortKey, sortDir]);
+
+  function toggleSort(k: SortKey) {
+    if (sortKey === k) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortKey(k); setSortDir(k === 'symbol' ? 'asc' : 'desc'); }
+  }
+  const sortArrow = (k: SortKey) => (sortKey === k ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '');
 
   const interval = useMemo(() => TIMEFRAMES.find((t) => t.tf === tf)?.interval ?? '1h', [tf]);
 
@@ -111,13 +122,10 @@ export default function ScannerPage() {
 
   return (
     <div className="p-6 space-y-5">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Poste d&apos;analyse &amp; Scanner</h1>
-          <p className="text-sm text-muted">Choisis marché, paire et timeframe — chart réel + analyse multi-agents.</p>
-        </div>
-        <a href="/dashboard" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">← Dashboard</a>
-      </header>
+      <PageHeader
+        title="Poste d’analyse & Scanner"
+        subtitle="Choisis marché, paire et timeframe — chart réel + analyse multi-agents."
+      />
 
       {/* Sessions mondiales */}
       {sessions.length > 0 && (
@@ -148,14 +156,7 @@ export default function ScannerPage() {
       <section className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-surface p-4">
         <div>
           <label className="mb-1 block text-xs text-muted">Marché</label>
-          <div className="flex gap-1">
-            {CLASSES.map((c) => (
-              <button key={c.id} onClick={() => setCls(c.id)}
-                className={`rounded-lg border px-3 py-1.5 text-sm ${cls === c.id ? 'border-accent bg-accent/10 text-white' : 'border-border text-muted hover:bg-background'}`}>
-                {c.label}
-              </button>
-            ))}
-          </div>
+          <MarketSelector value={cls} onChange={setCls} label={null} />
         </div>
         <div>
           <label className="mb-1 block text-xs text-muted">Paire / Symbole</label>
@@ -202,15 +203,68 @@ export default function ScannerPage() {
       {/* Résultats du scan */}
       {scanned && (
         <section className="space-y-3">
-          <h2 className="flex flex-wrap items-center gap-2 text-lg font-semibold text-white">
-            Résultats du scan ({results.length}{results.length ? ` · ${results.filter((r) => r.high_conviction).length} haute-conviction` : ''})
-            <span className="rounded bg-surface px-2 py-0.5 text-xs font-normal text-muted">
-              ⏱ {TIMEFRAMES.find((t) => t.tf === tf)?.label ?? tf}
-            </span>
-          </h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="flex flex-wrap items-center gap-2 text-lg font-semibold text-white">
+              Résultats du scan ({results.length}{results.length ? ` · ${results.filter((r) => r.high_conviction).length} haute-conviction` : ''})
+              <span className="rounded bg-surface px-2 py-0.5 text-xs font-normal text-muted">
+                ⏱ {TIMEFRAMES.find((t) => t.tf === tf)?.label ?? tf}
+              </span>
+            </h2>
+            <Segmented
+              value={scanView}
+              onChange={setScanView}
+              options={[{ value: 'table', label: '☰ Table' }, { value: 'cards', label: '▦ Cartes' }]}
+            />
+          </div>
           {results.length === 0 && <p className="text-muted">Aucun symbole ne correspond. Décoche « haute-conviction » pour voir tout le classement.</p>}
           {tradeMsg && <p className="text-sm text-buy">{tradeMsg} <a href="/wallet" className="underline">Portefeuille →</a></p>}
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+
+          {results.length > 0 && scanView === 'table' && (
+            <Table>
+              <THead>
+                <TR>
+                  <TH className="cursor-pointer select-none" onClick={() => toggleSort('symbol')}>Symbole{sortArrow('symbol')}</TH>
+                  <TH>Direction</TH>
+                  <TH className="cursor-pointer select-none text-right" onClick={() => toggleSort('conviction')}>Conviction{sortArrow('conviction')}</TH>
+                  <TH className="cursor-pointer select-none text-right" onClick={() => toggleSort('adx')}>ADX{sortArrow('adx')}</TH>
+                  <TH className="cursor-pointer select-none text-right" onClick={() => toggleSort('rsi')}>RSI{sortArrow('rsi')}</TH>
+                  <TH className="text-right">Multi-TF</TH>
+                  <TH className="text-right">Actions</TH>
+                </TR>
+              </THead>
+              <TBody>
+                {sortedResults.map((r) => (
+                  <TR key={r.symbol} className={r.high_conviction ? 'bg-buy/5' : ''}>
+                    <TD className="font-mono text-white">{r.symbol}</TD>
+                    <TD>
+                      {r.consolidated
+                        ? <DirectionBadge direction={r.direction} size="sm" />
+                        : <span className="text-2xs text-muted">⏳ à analyser</span>}
+                    </TD>
+                    <TD className="text-right font-mono text-white">{r.conviction}</TD>
+                    <TD className="text-right font-mono text-muted">{r.adx}</TD>
+                    <TD className="text-right font-mono text-muted">{r.rsi}</TD>
+                    <TD className={`text-right ${r.mtf_aligned >= 2 ? 'text-buy' : 'text-warn'}`}>
+                      {r.mtf_total != null ? `${r.mtf_aligned}/${r.mtf_total}` : '—'}
+                    </TD>
+                    <TD className="text-right">
+                      <div className="flex justify-end gap-1.5">
+                        <button onClick={() => analyze(r.symbol)} className="rounded border border-border px-2 py-0.5 text-2xs text-white hover:border-accent">Analyser</button>
+                        {r.consolidated && r.direction !== 'HOLD' && (
+                          <button onClick={() => tradeFromScan(r.symbol)} disabled={tradingSym === r.symbol}
+                            className={`rounded px-2 py-0.5 text-2xs font-medium text-white disabled:opacity-50 ${r.direction === 'BUY' ? 'bg-buy' : 'bg-sell'}`}>
+                            {tradingSym === r.symbol ? '…' : '📈'}
+                          </button>
+                        )}
+                      </div>
+                    </TD>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+          )}
+
+          <div className={`grid gap-3 md:grid-cols-2 lg:grid-cols-3 ${scanView === 'table' ? 'hidden' : ''}`}>
             {results.map((r) => (
               <div key={r.symbol}
                 className={`rounded-xl border bg-surface p-4 ${r.high_conviction ? 'border-buy/40' : 'border-border'}`}>

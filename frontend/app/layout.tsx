@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { NavBar } from '@/components/NavBar';
-import { Disclaimer } from '@/components/Disclaimer';
+import { AppShell } from '@/components/shell/AppShell';
+import { ApiToaster } from '@/components/shell/ApiToaster';
 
 export const metadata: Metadata = {
   title: 'Quantum Trade AI',
@@ -11,10 +11,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr" className="dark">
-      <body className="flex min-h-screen flex-col">
-        <NavBar />
-        <div className="flex-1">{children}</div>
-        <Disclaimer />
+      <body className="min-h-screen">
+        <AppShell>{children}</AppShell>
+        <ApiToaster />
       </body>
     </html>
   );

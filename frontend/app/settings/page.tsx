@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { api, type Settings } from '@/lib/api';
+import { PageHeader } from '@/components/ui';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -65,12 +66,7 @@ export default function SettingsPage() {
 
   return (
     <main className="mx-auto max-w-2xl space-y-6 p-6">
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Paramètres</h1>
-        <a href="/dashboard" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
-          ← Dashboard
-        </a>
-      </header>
+      <PageHeader title="Paramètres" />
       {msg && <p className="text-sm text-accent">{msg}</p>}
 
       {/* Watchlist */}

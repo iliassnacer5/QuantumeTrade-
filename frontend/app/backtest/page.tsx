@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { api, BacktestConfig, BacktestReport } from '@/lib/api';
+import { PageHeader, RouteTabs, PROVE_TABS } from '@/components/ui';
 
 export default function BacktestPage() {
   const [report, setReport] = useState<BacktestReport | null>(null);
@@ -31,8 +32,9 @@ export default function BacktestPage() {
 
   return (
     <div className="p-8 space-y-6 text-white">
-      <h1 className="text-2xl font-bold">Moteur de Backtesting</h1>
-      
+      <PageHeader title="Moteur de Backtesting" subtitle="Teste une configuration sur l’historique — frais et slippage inclus." />
+      <RouteTabs items={PROVE_TABS} />
+
       <div className="bg-[#1A1A1A] p-6 rounded-xl border border-white/5 space-y-4">
         <h2 className="text-xl font-semibold">Configuration</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

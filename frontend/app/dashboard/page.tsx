@@ -4,6 +4,9 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { Chart } from '@/components/Chart';
 import { SignalCard } from '@/components/SignalCard';
+import { motion } from 'framer-motion';
+import { MarketSelector, SessionPicker, SymbolPicker, AgentProgress } from '@/components/domain';
+import { staggerContainer, staggerItem } from '@/lib/motion';
 import {
   api,
   openSignalStream,
@@ -40,7 +43,6 @@ export default function DashboardPage() {
   const [symbols, setSymbols] = useState<{ symbol: string; asset_class: string }[]>([]);
   const [mktClass, setMktClass] = useState('');
   const [session, setSession] = useState('');
-  const [sessions, setSessions] = useState<{ id: string; label: string; window_utc: string; open: boolean }[]>([]);
 
   // Catalogue de symboles filtré par marché / session.
   useEffect(() => {
@@ -48,10 +50,6 @@ export default function DashboardPage() {
       .then((d) => setSymbols(d.results))
       .catch(() => {});
   }, [mktClass, session]);
-
-  useEffect(() => {
-    api.sessions().then((d) => setSessions(d.sessions)).catch(() => {});
-  }, []);
 
   useEffect(() => {
     api.heatmap(heatMix).then(setHeat).catch(() => {});
@@ -71,7 +69,10 @@ export default function DashboardPage() {
     try {
       const [m, s] = await Promise.all([api.me(), api.listSignals()]);
       setMe(m);
-      setAsset(m.watchlist[0] ?? 'BTC/USDT');
+      // La recherche de la topbar route vers /dashboard?symbol=… : on l'honore en priorité.
+      const querySymbol =
+        typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('symbol') : null;
+      setAsset(querySymbol ? querySymbol.toUpperCase() : (m.watchlist[0] ?? 'BTC/USDT'));
       setSignals(s);
       loadPanels();
     } catch {
@@ -202,43 +203,16 @@ export default function DashboardPage() {
       <section className="mb-6 space-y-3 rounded-xl border border-border bg-surface p-4">
         {/* Marchés + sessions */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-muted">Marché :</span>
-          {[
-            { id: '', label: 'Tous' },
-            { id: 'crypto', label: 'Crypto' },
-            { id: 'forex', label: 'Forex' },
-            { id: 'stock', label: 'Actions' },
-            { id: 'commodity', label: '🥇 Or' },
-          ].map((c) => (
-            <button key={c.id} onClick={() => setMktClass(c.id)}
-              className={`rounded-lg border px-2.5 py-1 text-xs ${mktClass === c.id ? 'border-accent bg-accent/10 text-white' : 'border-border text-muted hover:bg-background'}`}>
-              {c.label}
-            </button>
-          ))}
-          <span className="ml-3 text-xs text-muted">Session :</span>
-          <button onClick={() => setSession('')}
-            className={`rounded-lg border px-2.5 py-1 text-xs ${session === '' ? 'border-accent bg-accent/10 text-white' : 'border-border text-muted hover:bg-background'}`}>
-            Toutes
-          </button>
-          {sessions.map((s) => (
-            <button key={s.id} onClick={() => setSession(s.id)}
-              className={`rounded-lg border px-2.5 py-1 text-xs ${session === s.id ? 'border-accent bg-accent/10 text-white' : 'border-border text-muted hover:bg-background'}`}>
-              <span className={`mr-1 inline-block h-1.5 w-1.5 rounded-full ${s.open ? 'bg-buy' : 'bg-muted/40'}`} />
-              {s.label.split(' ')[0]}
-            </button>
-          ))}
+          <MarketSelector value={mktClass} onChange={setMktClass} />
+          <SessionPicker value={session} onChange={setSession} className="ml-2" />
         </div>
 
         {/* Paires cliquables -> charge le chart */}
-        <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
-          {symbols.map((s) => (
-            <button key={s.symbol} onClick={() => { setAsset(s.symbol); setSelected(null); }}
-              className={`rounded px-2 py-1 font-mono text-[11px] ${asset === s.symbol ? 'bg-accent text-background' : 'bg-background text-muted hover:bg-border hover:text-white'}`}>
-              {s.symbol}
-            </button>
-          ))}
-          {symbols.length === 0 && <span className="text-xs text-muted">Aucun symbole.</span>}
-        </div>
+        <SymbolPicker
+          symbols={symbols}
+          value={asset}
+          onChange={(sym) => { setAsset(sym); setSelected(null); }}
+        />
 
         {/* Saisie libre + timeframe + génération */}
         <div className="flex flex-wrap items-end gap-3 border-t border-border/50 pt-3">
@@ -280,11 +254,12 @@ export default function DashboardPage() {
             </div>
           </div>
           <button onClick={generate} disabled={loading}
-            className="rounded-lg bg-accent px-5 py-2 font-semibold text-background hover:opacity-90 disabled:opacity-50">
+            className="rounded-lg bg-brand-gradient px-5 py-2 font-semibold text-background shadow-glow transition hover:brightness-110 disabled:opacity-50">
             {loading ? 'Analyse...' : 'Générer un signal'}
           </button>
           {error && <p className="text-sm text-sell">{error}</p>}
         </div>
+        <AgentProgress active={loading} />
       </section>
 
       <section className="mb-6">
@@ -303,10 +278,16 @@ export default function DashboardPage() {
               Vider l&apos;historique
             </button>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <motion.div
+            variants={staggerContainer}
+            initial="initial"
+            animate="animate"
+            className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+          >
             {visibleSignals.map((s, i) => (
-              <div
+              <motion.div
                 key={s.id ?? i}
+                variants={staggerItem}
                 onClick={() => {
                   setSelected(s);
                   setAsset(s.asset);
@@ -314,9 +295,9 @@ export default function DashboardPage() {
                 className={`cursor-pointer text-left transition ${selected?.id === s.id ? 'ring-2 ring-accent rounded-xl' : ''}`}
               >
                 <SignalCard s={s} />
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
           {uniqueSignals.length > 6 && (
             <div className="mt-4 text-center">
               <button onClick={() => setShowAll((v) => !v)} className="rounded-lg border border-border px-4 py-1.5 text-sm text-muted hover:bg-surface hover:text-white">

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api, ApiKey, Listing, PlanInfo } from '@/lib/api';
+import { PageHeader, Button } from '@/components/ui';
 
 export default function MarketplacePage() {
   const [plan, setPlan] = useState<PlanInfo | null>(null);
@@ -61,16 +62,13 @@ export default function MarketplacePage() {
 
   return (
     <div className="p-8 space-y-6">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Marketplace</h1>
-          <p className="text-sm text-muted">Stratégies & agents IA · API développeur</p>
-        </div>
-        <div className="flex gap-2">
-          {canSell && <button onClick={createListing} className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">+ Vendre</button>}
-          <a href="/dashboard" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">← Dashboard</a>
-        </div>
-      </header>
+      <PageHeader
+        title="Marketplace"
+        subtitle="Stratégies & agents IA · API développeur"
+        actions={canSell && (
+          <Button variant="secondary" size="sm" onClick={createListing}>+ Vendre</Button>
+        )}
+      />
 
       {error && <p className="text-sell">{error}</p>}
 

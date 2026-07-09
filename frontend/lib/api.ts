@@ -260,6 +260,16 @@ export function clearToken() {
   localStorage.removeItem('qta_token');
 }
 
+/** Erreur API enrichie du status HTTP, pour le routage des toasts globaux. */
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(opts.headers as object) };
   const t = token();
@@ -267,7 +277,12 @@ async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API}${path}`, { ...opts, headers });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail ?? `Erreur ${res.status}`);
+    const message = body.detail ?? `Erreur ${res.status}`;
+    // Signal global : le Toaster décide s'il l'affiche (il ignore 401/402/404, gérés inline).
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('qta:api-error', { detail: { message, status: res.status } }));
+    }
+    throw new ApiError(message, res.status);
   }
   return res.json() as Promise<T>;
 }

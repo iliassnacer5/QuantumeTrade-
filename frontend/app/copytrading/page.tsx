@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api, CopyFollow, PlanInfo, Trader } from '@/lib/api';
+import { PageHeader, Button } from '@/components/ui';
 
 export default function CopyTradingPage() {
   const [plan, setPlan] = useState<PlanInfo | null>(null);
@@ -57,16 +58,13 @@ export default function CopyTradingPage() {
 
   return (
     <div className="p-8 space-y-6">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Copy-trading</h1>
-          <p className="text-sm text-muted">Suis les meilleurs traders (copie en papier, garde-fous de risque).</p>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={publish} className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">Publier mon profil</button>
-          <a href="/dashboard" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">← Dashboard</a>
-        </div>
-      </header>
+      <PageHeader
+        title="Copy-trading"
+        subtitle="Suis les meilleurs traders (copie en papier, garde-fous de risque)."
+        actions={
+          <Button variant="secondary" size="sm" onClick={publish}>Publier mon profil</Button>
+        }
+      />
 
       {error && <p className="text-sell">{error}</p>}
 

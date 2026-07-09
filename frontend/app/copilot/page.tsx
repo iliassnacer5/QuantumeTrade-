@@ -2,16 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { api, copilotStream, PlanInfo } from '@/lib/api';
+import { MarketSelector, UpgradeGate } from '@/components/domain';
+import { PageHeader } from '@/components/ui';
 
 type Msg = { role: 'user' | 'assistant'; content: string };
-
-const CLASSES = [
-  { id: '', label: 'Tous' },
-  { id: 'crypto', label: 'Crypto' },
-  { id: 'forex', label: 'Forex' },
-  { id: 'stock', label: 'Actions' },
-  { id: 'commodity', label: '🥇 Or & Métaux' },
-];
 
 // Actions rapides marché : pré-remplissent et envoient directement la question au copilot.
 const QUICK_ACTIONS = [
@@ -93,39 +87,25 @@ export default function CopilotPage() {
 
   return (
     <div className="mx-auto flex h-[calc(100vh-2rem)] max-w-3xl flex-col p-4">
-      <header className="mb-3 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">AI Copilot</h1>
-          <p className="text-sm text-muted">
-            Ton copilot de trading : état des marchés, trades du jour, et « dois-je trader ce symbole ? ».
-          </p>
-        </div>
-        <a href="/dashboard" className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-surface">
-          ← Dashboard
-        </a>
-      </header>
+      <PageHeader
+        className="mb-3"
+        title="AI Copilot"
+        subtitle="Ton copilot de trading : état des marchés, trades du jour, et « dois-je trader ce symbole ? »."
+      />
 
       {locked && (
-        <div className="mb-4 rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm text-yellow-200">
-          Le Copilot est réservé au plan <b>Pro</b>.{' '}
-          <a href="/plans" className="underline">Mettre à niveau</a>
-        </div>
+        <UpgradeGate
+          feature="AI Copilot"
+          plan="Pro"
+          description="Discute avec ton copilot de trading : état des marchés, trades du jour, analyse à la demande."
+          className="mb-4"
+        />
       )}
 
       {/* Sélecteur : marché · session · symbole/paire */}
       <section className="mb-3 space-y-2 rounded-xl border border-border bg-surface p-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-muted">Marché</span>
-          {CLASSES.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => setCls(c.id)}
-              className={`rounded-lg border px-2.5 py-1 text-sm ${cls === c.id ? 'border-accent bg-accent/10 text-white' : 'border-border text-muted hover:bg-background'}`}
-            >
-              {c.label}
-            </button>
-          ))}
-        </div>
+        <MarketSelector value={cls} onChange={setCls} />
+
         {sessions.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-muted">Sessions <span className="text-[10px]">({utcTime})</span></span>
@@ -200,17 +180,25 @@ export default function CopilotPage() {
             </div>
           </div>
         )}
-        {messages.map((m, i) => (
-          <div key={i} className={m.role === 'user' ? 'text-right' : 'text-left'}>
-            <div
-              className={`inline-block max-w-[85%] whitespace-pre-wrap rounded-xl px-4 py-2 text-sm ${
-                m.role === 'user' ? 'bg-accent/20 text-white' : 'bg-[#1A1A1A] text-gray-200'
-              }`}
-            >
-              {m.content || (streaming && i === messages.length - 1 ? '…' : '')}
+        {messages.map((m, i) => {
+          const isUser = m.role === 'user';
+          const isStreaming = streaming && i === messages.length - 1 && !isUser;
+          return (
+            <div key={i} className={`flex gap-2 ${isUser ? 'flex-row-reverse' : ''}`}>
+              <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-2xs font-bold ${isUser ? 'bg-accent/20 text-accent' : 'bg-brand-gradient text-background'}`}>
+                {isUser ? '🧑' : 'Q'}
+              </span>
+              <div
+                className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-2 text-sm ${
+                  isUser ? 'bg-accent/15 text-white' : 'glass text-gray-200'
+                }`}
+              >
+                {m.content || (isStreaming ? '' : '')}
+                {isStreaming && <span className="ml-0.5 inline-block h-3.5 w-1.5 animate-pulse-dot bg-accent align-middle" />}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         <div ref={endRef} />
       </div>
 
